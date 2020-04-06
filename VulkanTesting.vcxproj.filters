@@ -3,4 +3,7 @@
   <ItemGroup>
     <ClCompile Include="Application.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="RenderDevice.h" />
+  </ItemGroup>
 </Project>

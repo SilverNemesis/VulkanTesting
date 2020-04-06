@@ -1,3 +1,5 @@
+#include "RenderDevice.h"
+
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
 #ifdef _DEBUG
@@ -24,21 +26,28 @@ public:
         }
 
         SDL_GetWindowSize(window_, &window_width_, &window_height_);
+
+        uint32_t required_extension_count = 0;
+        SDL_Vulkan_GetInstanceExtensions(window_, &required_extension_count, nullptr);
+        std::vector<const char*> required_extensions(required_extension_count);
+        SDL_Vulkan_GetInstanceExtensions(window_, &required_extension_count, required_extensions.data());
+        render_device_.Initialize(window_width_, window_height_, required_extensions, CreateSurface, window_);
     }
 
     void Run() {
         while (!window_closed_) {
-            processInput();
+            ProcessInput();
 
-            update();
+            Update();
 
             if (!window_minimized_) {
-                render();
+                Render();
             }
         }
     }
 
     void Shutdown() {
+        render_device_.Destroy();
         SDL_DestroyWindow(window_);
         SDL_Quit();
     }
@@ -50,8 +59,15 @@ private:
     bool window_resized_ = false;
     bool window_minimized_ = false;
     bool window_closed_ = false;
+    RenderDevice render_device_;
 
-    void processInput() {
+    static void CreateSurface(void* window, VkInstance& instance, VkSurfaceKHR& surface) {
+        if (!SDL_Vulkan_CreateSurface((SDL_Window*)window, instance, &surface)) {
+            throw std::runtime_error("failed to create window surface!");
+        }
+    }
+
+    void ProcessInput() {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             switch (event.type) {
@@ -86,12 +102,14 @@ private:
         }
     }
 
-    void update() {
+    void Update() {
     }
 
-    void render() {
+    void Render() {
     }
 };
+
+void (*(RenderDevice::Log))(const char* fmt, ...) = SDL_Log;
 
 int main(int argc, char* argv[]) {
     Application app(800, 600);
@@ -101,11 +119,11 @@ int main(int argc, char* argv[]) {
         app.Run();
         app.Shutdown();
     }
-    catch (const std::exception& e) {
+    catch (const std::exception& exception) {
 #ifdef _DEBUG
-        SDL_Log("%s", e.what());
+        SDL_Log("%s", exception.what());
 #else
-        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Run-Time Error", e.what(), nullptr);
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Run-Time Error", exception.what(), nullptr);
 #endif
         return EXIT_FAILURE;
     }
