@@ -20,6 +20,7 @@ public:
     VkDevice device_;
     VkQueue graphics_queue_;
     VkQueue present_queue_;
+    VkCommandPool command_pool_;
 
     void Initialize(uint32_t window_width, uint32_t window_height, std::vector<const char*>& required_extensions, void (*CreateSurface)(void* window, VkInstance& instance, VkSurfaceKHR& surface), void* window) {
         CreateInstance(required_extensions);
@@ -34,9 +35,13 @@ public:
         Log("physical device selected");
         CreateLogicalDevice();
 		Log("logical device created");
+        CreateCommandPool();
+		Log("command pool created");
     }
 
     void Destroy() {
+        vkDestroyCommandPool(device_, command_pool_, nullptr);
+		Log("command pool created");
         vkDestroyDevice(device_, nullptr);
 		Log("logical device destroyed");
         vkDestroySurfaceKHR(instance_, surface_, nullptr);
@@ -330,5 +335,15 @@ private:
 
         vkGetDeviceQueue(device_, graphics_family_index_, 0, &graphics_queue_);
         vkGetDeviceQueue(device_, present_family_index_, 0, &present_queue_);
+    }
+
+    void CreateCommandPool() {
+        VkCommandPoolCreateInfo pool_info = {};
+        pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        pool_info.queueFamilyIndex = graphics_family_index_;
+
+        if (vkCreateCommandPool(device_, &pool_info, nullptr, &command_pool_) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create command pool!");
+        }
     }
 };
