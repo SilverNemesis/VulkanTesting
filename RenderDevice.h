@@ -17,6 +17,9 @@ public:
     VkSampleCountFlagBits msaa_samples_ = VK_SAMPLE_COUNT_1_BIT;
     uint32_t graphics_family_index_;
     uint32_t present_family_index_;
+    VkDevice device_;
+    VkQueue graphics_queue_;
+    VkQueue present_queue_;
 
     void Initialize(uint32_t window_width, uint32_t window_height, std::vector<const char*>& required_extensions, void (*CreateSurface)(void* window, VkInstance& instance, VkSurfaceKHR& surface), void* window) {
         CreateInstance(required_extensions);
@@ -29,9 +32,13 @@ public:
         Log("surface created");
         PickPhysicalDevice();
         Log("physical device selected");
+        CreateLogicalDevice();
+		Log("logical device created");
     }
 
     void Destroy() {
+        vkDestroyDevice(device_, nullptr);
+		Log("logical device destroyed");
         vkDestroySurfaceKHR(instance_, surface_, nullptr);
         Log("surface destroyed");
 #ifdef _DEBUG
@@ -45,10 +52,8 @@ public:
 private:
     VkInstance instance_;
     VkDebugUtilsMessengerEXT debug_messenger_;
-
-    const std::vector<const char*> validation_layers_ = {
-        "VK_LAYER_KHRONOS_validation"
-    };
+    const std::vector<const char*> device_extensions_{VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+    const std::vector<const char*> validation_layers_{"VK_LAYER_KHRONOS_validation"};
 
     void CreateInstance(std::vector<const char*>& required_extensions) {
 #ifdef _DEBUG
@@ -255,7 +260,9 @@ private:
         vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &extension_count, available_extensions.data());
 
         std::set<std::string> required_extensions;
-        required_extensions.insert(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+        for (auto device_extension : device_extensions_) {
+            required_extensions.insert(device_extension);
+        }
 
         for (const auto& extension : available_extensions) {
             required_extensions.erase(extension.extensionName);
@@ -280,5 +287,48 @@ private:
             present_modes.resize(present_mode_count);
             vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, surface_, &present_mode_count, present_modes.data());
         }
+    }
+
+    void CreateLogicalDevice() {
+        std::vector<VkDeviceQueueCreateInfo> queue_create_infos;
+        std::set<uint32_t> unique_queue_families = {graphics_family_index_, present_family_index_};
+
+        float queuePriority = 1.0f;
+        for (uint32_t queue_family : unique_queue_families) {
+            VkDeviceQueueCreateInfo queue_create_info = {};
+            queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+            queue_create_info.queueFamilyIndex = queue_family;
+            queue_create_info.queueCount = 1;
+            queue_create_info.pQueuePriorities = &queuePriority;
+            queue_create_infos.push_back(queue_create_info);
+        }
+
+        VkPhysicalDeviceFeatures device_features = {};
+        device_features.samplerAnisotropy = VK_TRUE;
+
+        VkDeviceCreateInfo create_info = {};
+        create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+
+        create_info.queueCreateInfoCount = static_cast<uint32_t>(queue_create_infos.size());
+        create_info.pQueueCreateInfos = queue_create_infos.data();
+
+        create_info.pEnabledFeatures = &device_features;
+
+        create_info.enabledExtensionCount = static_cast<uint32_t>(device_extensions_.size());
+        create_info.ppEnabledExtensionNames = device_extensions_.data();
+
+#ifdef _DEBUG
+        create_info.enabledLayerCount = static_cast<uint32_t>(validation_layers_.size());
+        create_info.ppEnabledLayerNames = validation_layers_.data();
+#else
+        create_info.enabledLayerCount = 0;
+#endif
+
+        if (vkCreateDevice(physical_device_, &create_info, nullptr, &device_) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create logical device!");
+        }
+
+        vkGetDeviceQueue(device_, graphics_family_index_, 0, &graphics_queue_);
+        vkGetDeviceQueue(device_, present_family_index_, 0, &present_queue_);
     }
 };
