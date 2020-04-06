@@ -21,6 +21,11 @@ public:
     VkQueue graphics_queue_;
     VkQueue present_queue_;
     VkCommandPool command_pool_;
+    VkSurfaceCapabilitiesKHR capabilities_;
+    uint32_t image_count_;
+    VkSurfaceFormatKHR surface_format_;
+    VkFormat depth_format_;
+    VkPresentModeKHR present_mode_;
 
     void Initialize(uint32_t window_width, uint32_t window_height, std::vector<const char*>& required_extensions, void (*CreateSurface)(void* window, VkInstance& instance, VkSurfaceKHR& surface), void* window) {
         CreateInstance(required_extensions);
@@ -34,16 +39,27 @@ public:
         PickPhysicalDevice();
         Log("physical device selected");
         CreateLogicalDevice();
-		Log("logical device created");
+        Log("logical device created");
         CreateCommandPool();
-		Log("command pool created");
+        Log("command pool created");
+        ChooseSwapExtent(window_width, window_height);
+        image_count_ = capabilities_.minImageCount > 2 ? capabilities_.minImageCount : 2;
+        std::vector<VkSurfaceFormatKHR> formats;
+        std::vector<VkPresentModeKHR> present_modes;
+        QuerySwapChainSupport(physical_device_, capabilities_, formats, present_modes);
+        if (capabilities_.maxImageCount > 0 && image_count_ > capabilities_.maxImageCount) {
+            image_count_ = capabilities_.maxImageCount;
+        }
+        surface_format_ = ChooseSwapSurfaceFormat(formats);
+        present_mode_ = ChooseSwapPresentMode(present_modes);
+        depth_format_ = FindDepthFormat();
     }
 
     void Destroy() {
         vkDestroyCommandPool(device_, command_pool_, nullptr);
-		Log("command pool created");
+        Log("command pool created");
         vkDestroyDevice(device_, nullptr);
-		Log("logical device destroyed");
+        Log("logical device destroyed");
         vkDestroySurfaceKHR(instance_, surface_, nullptr);
         Log("surface destroyed");
 #ifdef _DEBUG
@@ -52,6 +68,21 @@ public:
 #endif
         vkDestroyInstance(instance_, nullptr);
         Log("instance destroyed");
+    }
+
+    VkExtent2D ChooseSwapExtent(uint32_t windowWidth, uint32_t windowHeight) {
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device_, surface_, &capabilities_);
+
+        if (capabilities_.currentExtent.width != UINT32_MAX) {
+            return capabilities_.currentExtent;
+        } else {
+            VkExtent2D actual_extent = {windowWidth, windowHeight};
+
+            actual_extent.width = std::max(capabilities_.minImageExtent.width, std::min(capabilities_.maxImageExtent.width, actual_extent.width));
+            actual_extent.height = std::max(capabilities_.minImageExtent.height, std::min(capabilities_.maxImageExtent.height, actual_extent.height));
+
+            return actual_extent;
+        }
     }
 
 private:
@@ -345,5 +376,48 @@ private:
         if (vkCreateCommandPool(device_, &pool_info, nullptr, &command_pool_) != VK_SUCCESS) {
             throw std::runtime_error("failed to create command pool!");
         }
+    }
+
+    VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& available_formats) {
+        for (const auto& available_format : available_formats) {
+            if (available_format.format == VK_FORMAT_B8G8R8A8_SRGB && available_format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+                return available_format;
+            }
+        }
+
+        return available_formats[0];
+    }
+
+    VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR>& available_present_modes) {
+        for (const auto& available_present_mode : available_present_modes) {
+            if (available_present_mode == VK_PRESENT_MODE_MAILBOX_KHR) {
+                return available_present_mode;
+            }
+        }
+
+        return VK_PRESENT_MODE_FIFO_KHR;
+    }
+
+    VkFormat FindDepthFormat() {
+        return FindSupportedFormat(
+            {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+        );
+    }
+
+    VkFormat FindSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
+        for (VkFormat format : candidates) {
+            VkFormatProperties props;
+            vkGetPhysicalDeviceFormatProperties(physical_device_, format, &props);
+
+            if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features) {
+                return format;
+            } else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features) {
+                return format;
+            }
+        }
+
+        throw std::runtime_error("failed to find supported format!");
     }
 };
