@@ -85,6 +85,19 @@ public:
         }
     }
 
+    uint32_t FindMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties) {
+        VkPhysicalDeviceMemoryProperties memory_properties;
+        vkGetPhysicalDeviceMemoryProperties(physical_device_, &memory_properties);
+
+        for (uint32_t i = 0; i < memory_properties.memoryTypeCount; i++) {
+            if ((type_filter & (1 << i)) && (memory_properties.memoryTypes[i].propertyFlags & properties) == properties) {
+                return i;
+            }
+        }
+
+        throw std::runtime_error("unable to find required memory type");
+    }
+
 private:
     VkInstance instance_;
     VkDebugUtilsMessengerEXT debug_messenger_;
