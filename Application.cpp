@@ -1,4 +1,5 @@
 #include "RenderDevice.h"
+#include "RenderSwapchain.h"
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
@@ -26,12 +27,12 @@ public:
         }
 
         SDL_GetWindowSize(window_, &window_width_, &window_height_);
-
         uint32_t required_extension_count = 0;
         SDL_Vulkan_GetInstanceExtensions(window_, &required_extension_count, nullptr);
         std::vector<const char*> required_extensions(required_extension_count);
         SDL_Vulkan_GetInstanceExtensions(window_, &required_extension_count, required_extensions.data());
         render_device_.Initialize(window_width_, window_height_, required_extensions, CreateSurface, window_);
+        render_swapchain_.Initialize(window_width_, window_height_);
     }
 
     void Run() {
@@ -47,6 +48,7 @@ public:
     }
 
     void Shutdown() {
+        render_swapchain_.Destroy();
         render_device_.Destroy();
         SDL_DestroyWindow(window_);
         SDL_Quit();
@@ -56,15 +58,21 @@ private:
     SDL_Window* window_ = NULL;
     int window_width_;
     int window_height_;
-    bool window_resized_ = false;
     bool window_minimized_ = false;
     bool window_closed_ = false;
     RenderDevice render_device_;
+    RenderSwapchain render_swapchain_{render_device_};
 
     static void CreateSurface(void* window, VkInstance& instance, VkSurfaceKHR& surface) {
         if (!SDL_Vulkan_CreateSurface((SDL_Window*)window, instance, &surface)) {
             throw std::runtime_error("failed to create window surface!");
         }
+    }
+
+    void RecreateSwapchain() {
+        vkDeviceWaitIdle(render_device_.device_);
+        render_swapchain_.Destroy();
+        render_swapchain_.Initialize(window_width_, window_height_);
     }
 
     void ProcessInput() {
@@ -86,8 +94,8 @@ private:
             case SDL_WINDOWEVENT:
                 switch (event.window.event) {
                 case SDL_WINDOWEVENT_RESIZED:
-                    window_resized_ = true;
                     SDL_GetWindowSize(window_, &window_width_, &window_height_);
+                    RecreateSwapchain();
                     break;
                 case SDL_WINDOWEVENT_MINIMIZED:
                     window_minimized_ = true;
