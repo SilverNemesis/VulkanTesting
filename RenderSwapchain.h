@@ -6,6 +6,12 @@
 
 class RenderSwapchain {
 public:
+    class Pipeline {
+    public:
+        virtual void Rebuild(RenderSwapchain* render_swapchain) = 0;
+        virtual void Reset() = 0;
+    };
+
     VkSwapchainKHR swapchain_;
     VkExtent2D swapchain_extent_;
 
@@ -22,10 +28,48 @@ public:
 
     void Rebuild(uint32_t window_width, uint32_t window_height) {
         if (swapchain_extent_.width != window_width || swapchain_extent_.height != window_height) {
+            for (auto pipeline : pipelines_) {
+                pipeline->Reset();
+            }
+
             RenderDevice::Log("rebuilding swapchain x=%d, y=%d", window_width, window_height);
             Reset();
             Create(window_width, window_height);
+
+            for (auto pipeline : pipelines_) {
+                pipeline->Rebuild(this);
+            }
         }
+    }
+
+    void CreateFramebuffers(VkRenderPass render_pass, std::vector<VkFramebuffer>& framebuffers) {
+        framebuffers.resize(image_views_.size());
+
+        for (size_t i = 0; i < image_views_.size(); i++) {
+            std::array<VkImageView, 3> attachments = {
+                color_image_view_,
+                depth_image_view_,
+                image_views_[i]
+            };
+
+            VkFramebufferCreateInfo framebuffer_info = {};
+            framebuffer_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+            framebuffer_info.renderPass = render_pass;
+            framebuffer_info.attachmentCount = static_cast<uint32_t>(attachments.size());
+            framebuffer_info.pAttachments = attachments.data();
+            framebuffer_info.width = swapchain_extent_.width;
+            framebuffer_info.height = swapchain_extent_.height;
+            framebuffer_info.layers = 1;
+
+            if (vkCreateFramebuffer(render_device_.device_, &framebuffer_info, nullptr, &framebuffers[i]) != VK_SUCCESS) {
+                throw std::runtime_error("failed to create framebuffer");
+            }
+        }
+    }
+
+    void RegisterPipeline(Pipeline* pipeline) {
+        pipelines_.push_back(pipeline);
+        pipeline->Rebuild(this);
     }
 
 private:
@@ -41,6 +85,8 @@ private:
     VkImage depth_image_;
     VkDeviceMemory depth_image_memory_;
     VkImageView depth_image_view_;
+
+    std::vector<Pipeline*> pipelines_;
 
     void Create(uint32_t window_width, uint32_t window_height) {
         CreateSwapChain(window_width, window_height);
