@@ -16,6 +16,7 @@ public:
     Application(int window_width, int window_height) : window_width_(window_width), window_height_(window_height) {}
 
     void Startup() {
+        SDL_Log("application startup");
         if (SDL_Init(SDL_INIT_VIDEO) < 0) {
             throw std::runtime_error(SDL_GetError());
         }
@@ -48,6 +49,7 @@ public:
     }
 
     void Shutdown() {
+        SDL_Log("application shutdown");
         render_swapchain_.Destroy();
         render_device_.Destroy();
         SDL_DestroyWindow(window_);
@@ -71,8 +73,7 @@ private:
 
     void RecreateSwapchain() {
         vkDeviceWaitIdle(render_device_.device_);
-        render_swapchain_.Destroy();
-        render_swapchain_.Initialize(window_width_, window_height_);
+        render_swapchain_.Rebuild(window_width_, window_height_);
     }
 
     void ProcessInput() {

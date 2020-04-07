@@ -11,8 +11,39 @@ public:
 
     RenderSwapchain(RenderDevice& render_device) : render_device_(render_device) {}
 
-    void Initialize(uint32_t windowWidth, uint32_t windowHeight) {
-        CreateSwapChain(windowWidth, windowHeight);
+    void Initialize(uint32_t window_width, uint32_t window_height) {
+        RenderDevice::Log("building swapchain x=%d, y=%d", window_width, window_height);
+        Create(window_width, window_height);
+    }
+
+    void Destroy() {
+        Reset();
+    }
+
+    void Rebuild(uint32_t window_width, uint32_t window_height) {
+        if (swapchain_extent_.width != window_width || swapchain_extent_.height != window_height) {
+            RenderDevice::Log("rebuilding swapchain x=%d, y=%d", window_width, window_height);
+            Reset();
+            Create(window_width, window_height);
+        }
+    }
+
+private:
+    RenderDevice& render_device_;
+
+    std::vector<VkImage> images_;
+    std::vector<VkImageView> image_views_;
+
+    VkImage color_image_;
+    VkDeviceMemory color_image_memory_;
+    VkImageView color_image_view_;
+
+    VkImage depth_image_;
+    VkDeviceMemory depth_image_memory_;
+    VkImageView depth_image_view_;
+
+    void Create(uint32_t window_width, uint32_t window_height) {
+        CreateSwapChain(window_width, window_height);
         RenderDevice::Log("swapchain created");
         CreateImageViews();
         RenderDevice::Log("image views created");
@@ -22,7 +53,7 @@ public:
         RenderDevice::Log("depth resources created");
     }
 
-    void Destroy() {
+    void Reset() {
         vkDestroyImageView(render_device_.device_, depth_image_view_, nullptr);
         vkDestroyImage(render_device_.device_, depth_image_, nullptr);
         vkFreeMemory(render_device_.device_, depth_image_memory_, nullptr);
@@ -41,20 +72,6 @@ public:
         vkDestroySwapchainKHR(render_device_.device_, swapchain_, nullptr);
         RenderDevice::Log("swapchain destroyed");
     }
-
-private:
-    RenderDevice& render_device_;
-
-    std::vector<VkImage> images_;
-    std::vector<VkImageView> image_views_;
-
-    VkImage color_image_;
-    VkDeviceMemory color_image_memory_;
-    VkImageView color_image_view_;
-
-    VkImage depth_image_;
-    VkDeviceMemory depth_image_memory_;
-    VkImageView depth_image_view_;
 
     void CreateSwapChain(uint32_t window_width, uint32_t window_height) {
         VkExtent2D extent = render_device_.ChooseSwapExtent(window_width, window_height);
