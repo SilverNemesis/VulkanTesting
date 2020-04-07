@@ -98,6 +98,32 @@ public:
         throw std::runtime_error("unable to find required memory type");
     }
 
+    void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& buffer_memory) {
+        VkBufferCreateInfo buffer_info = {};
+        buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        buffer_info.size = size;
+        buffer_info.usage = usage;
+        buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        if (vkCreateBuffer(device_, &buffer_info, nullptr, &buffer) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create buffer!");
+        }
+
+        VkMemoryRequirements memory_requirements;
+        vkGetBufferMemoryRequirements(device_, buffer, &memory_requirements);
+
+        VkMemoryAllocateInfo allocate_info = {};
+        allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocate_info.allocationSize = memory_requirements.size;
+        allocate_info.memoryTypeIndex = FindMemoryType(memory_requirements.memoryTypeBits, properties);
+
+        if (vkAllocateMemory(device_, &allocate_info, nullptr, &buffer_memory) != VK_SUCCESS) {
+            throw std::runtime_error("failed to allocate buffer memory!");
+        }
+
+        vkBindBufferMemory(device_, buffer, buffer_memory, 0);
+    }
+
 private:
     VkInstance instance_;
     VkDebugUtilsMessengerEXT debug_messenger_;
@@ -374,7 +400,7 @@ private:
 #endif
 
         if (vkCreateDevice(physical_device_, &create_info, nullptr, &device_) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create logical device!");
+            throw std::runtime_error("failed to create logical device");
         }
 
         vkGetDeviceQueue(device_, graphics_family_index_, 0, &graphics_queue_);
@@ -387,7 +413,7 @@ private:
         pool_info.queueFamilyIndex = graphics_family_index_;
 
         if (vkCreateCommandPool(device_, &pool_info, nullptr, &command_pool_) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create command pool!");
+            throw std::runtime_error("failed to create command pool");
         }
     }
 
