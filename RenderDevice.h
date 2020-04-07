@@ -124,6 +124,20 @@ public:
         vkBindBufferMemory(device_, buffer, buffer_memory, 0);
     }
 
+    VkShaderModule CreateShaderModule(const unsigned char* byte_code, size_t byte_code_length) {
+        VkShaderModuleCreateInfo create_info = {};
+        create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        create_info.codeSize = byte_code_length;
+        create_info.pCode = reinterpret_cast<const uint32_t*>(byte_code);
+
+        VkShaderModule shader_module;
+        if (vkCreateShaderModule(device_, &create_info, nullptr, &shader_module) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create shader module");
+        }
+
+        return shader_module;
+    }
+
 private:
     VkInstance instance_;
     VkDebugUtilsMessengerEXT debug_messenger_;
