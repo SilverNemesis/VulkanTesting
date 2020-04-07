@@ -7,4 +7,29 @@
     <ClInclude Include="RenderDevice.h" />
     <ClInclude Include="RenderSwapchain.h" />
   </ItemGroup>
+  <ItemGroup>
+    <Filter Include="shaders">
+      <UniqueIdentifier>{b956a26c-c3d8-44e6-930f-d985e8054d85}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="shaders\color">
+      <UniqueIdentifier>{6d7cd3f2-f182-4d65-9d9e-2e81180047d0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="shaders\texture">
+      <UniqueIdentifier>{83ba9321-c23e-4fb9-a31f-9dbf04aedd80}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="shaders\color\shader.frag">
+      <Filter>shaders\color</Filter>
+    </None>
+    <None Include="shaders\color\shader.vert">
+      <Filter>shaders\color</Filter>
+    </None>
+    <None Include="shaders\texture\shader.frag">
+      <Filter>shaders\texture</Filter>
+    </None>
+    <None Include="shaders\texture\shader.vert">
+      <Filter>shaders\texture</Filter>
+    </None>
+  </ItemGroup>
 </Project>

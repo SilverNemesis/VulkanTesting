@@ -9,6 +9,7 @@
 #pragma comment(lib, "SDL2main.lib")
 #endif
 
+#include <fstream>
 #include <stdexcept>
 
 class Application {
@@ -27,13 +28,19 @@ public:
             throw std::runtime_error(SDL_GetError());
         }
 
-        SDL_GetWindowSize(window_, &window_width_, &window_height_);
+        SDL_Vulkan_GetDrawableSize(window_, &window_width_, &window_height_);
         uint32_t required_extension_count = 0;
         SDL_Vulkan_GetInstanceExtensions(window_, &required_extension_count, nullptr);
         std::vector<const char*> required_extensions(required_extension_count);
         SDL_Vulkan_GetInstanceExtensions(window_, &required_extension_count, required_extensions.data());
         render_device_.Initialize(window_width_, window_height_, required_extensions, CreateSurface, window_);
         render_swapchain_.Initialize(window_width_, window_height_);
+        std::vector<unsigned char> byte_code = ReadFile("shaders/color/vert.spv");
+        VkShaderModule vertex_shader_module = render_device_.CreateShaderModule(byte_code.data(), byte_code.size());
+        byte_code = ReadFile("shaders/color/frag.spv");
+        VkShaderModule fragment_shader_module = render_device_.CreateShaderModule(byte_code.data(), byte_code.size());
+        vkDestroyShaderModule(render_device_.device_, vertex_shader_module, NULL);
+        vkDestroyShaderModule(render_device_.device_, fragment_shader_module, NULL);
     }
 
     void Run() {
@@ -50,6 +57,7 @@ public:
 
     void Shutdown() {
         SDL_Log("application shutdown");
+        vkDeviceWaitIdle(render_device_.device_);
         render_swapchain_.Destroy();
         render_device_.Destroy();
         SDL_DestroyWindow(window_);
@@ -67,7 +75,7 @@ private:
 
     static void CreateSurface(void* window, VkInstance& instance, VkSurfaceKHR& surface) {
         if (!SDL_Vulkan_CreateSurface((SDL_Window*)window, instance, &surface)) {
-            throw std::runtime_error("failed to create window surface!");
+            throw std::runtime_error("failed to create window surface");
         }
     }
 
@@ -95,7 +103,7 @@ private:
             case SDL_WINDOWEVENT:
                 switch (event.window.event) {
                 case SDL_WINDOWEVENT_RESIZED:
-                    SDL_GetWindowSize(window_, &window_width_, &window_height_);
+                    SDL_Vulkan_GetDrawableSize(window_, &window_width_, &window_height_);
                     RecreateSwapchain();
                     break;
                 case SDL_WINDOWEVENT_MINIMIZED:
@@ -115,6 +123,24 @@ private:
     }
 
     void Render() {
+    }
+
+    std::vector<unsigned char> ReadFile(const std::string& file_name) {
+        std::ifstream file(file_name, std::ios::ate | std::ios::binary);
+
+        if (!file.is_open()) {
+            throw std::runtime_error("failed to open file!");
+        }
+
+        size_t file_size = (size_t)file.tellg();
+        std::vector<unsigned char> buffer(file_size);
+
+        file.seekg(0);
+        file.read(reinterpret_cast<char*>(buffer.data()), file_size);
+
+        file.close();
+
+        return buffer;
     }
 };
 

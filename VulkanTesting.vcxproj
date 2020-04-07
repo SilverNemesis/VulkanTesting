@@ -152,6 +152,12 @@
     <ClInclude Include="RenderDevice.h" />
     <ClInclude Include="RenderSwapchain.h" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="shaders\color\shader.frag" />
+    <None Include="shaders\color\shader.vert" />
+    <None Include="shaders\texture\shader.frag" />
+    <None Include="shaders\texture\shader.vert" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
