@@ -1,5 +1,12 @@
-#include "RenderDevice.h"
-#include "RenderSwapchain.h"
+#include <fstream>
+#include <stdexcept>
+
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/hash.hpp>
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
@@ -9,8 +16,38 @@
 #pragma comment(lib, "SDL2main.lib")
 #endif
 
-#include <fstream>
-#include <stdexcept>
+#include "RenderDevice.h"
+#include "RenderSwapchain.h"
+#include "RenderPipeline.h"
+
+struct Vertex_Color {
+    glm::vec3 pos;
+    glm::vec3 color;
+
+    bool operator==(const Vertex_Color& other) const {
+        return pos == other.pos && color == other.color;
+    }
+
+    static VkVertexInputBindingDescription getBindingDescription() {
+        static VkVertexInputBindingDescription bindingDescription = {0, sizeof(Vertex_Color), VK_VERTEX_INPUT_RATE_VERTEX};
+        return bindingDescription;
+    }
+
+    static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() {
+        static std::vector<VkVertexInputAttributeDescription> attributeDescriptions = {{
+            {0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex_Color, pos)},
+            {1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex_Color, color)}
+            }};
+        return attributeDescriptions;
+    }
+};
+
+struct Vertex_Color_Hash {
+    size_t operator()(Vertex_Color const& vertex) const {
+        return std::hash<glm::vec3>()(vertex.pos) ^ std::hash<glm::vec3>()(vertex.color);
+    }
+};
+
 
 class Application {
 public:
@@ -39,8 +76,7 @@ public:
         VkShaderModule vertex_shader_module = render_device_.CreateShaderModule(byte_code.data(), byte_code.size());
         byte_code = ReadFile("shaders/color/frag.spv");
         VkShaderModule fragment_shader_module = render_device_.CreateShaderModule(byte_code.data(), byte_code.size());
-        vkDestroyShaderModule(render_device_.device_, vertex_shader_module, NULL);
-        vkDestroyShaderModule(render_device_.device_, fragment_shader_module, NULL);
+        render_pipeline_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 0, render_swapchain_);
     }
 
     void Run() {
@@ -58,6 +94,7 @@ public:
     void Shutdown() {
         SDL_Log("application shutdown");
         vkDeviceWaitIdle(render_device_.device_);
+        render_pipeline_.Destroy();
         render_swapchain_.Destroy();
         render_device_.Destroy();
         SDL_DestroyWindow(window_);
@@ -72,6 +109,12 @@ private:
     bool window_closed_ = false;
     RenderDevice render_device_;
     RenderSwapchain render_swapchain_{render_device_};
+    RenderPipeline render_pipeline_{render_device_, Vertex_Color::getBindingDescription(), Vertex_Color::getAttributeDescriptions()};
+    struct UniformBufferObject {
+        glm::mat4 model;
+        glm::mat4 view;
+        glm::mat4 proj;
+    };
 
     static void CreateSurface(void* window, VkInstance& instance, VkSurfaceKHR& surface) {
         if (!SDL_Vulkan_CreateSurface((SDL_Window*)window, instance, &surface)) {

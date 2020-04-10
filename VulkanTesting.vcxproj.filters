@@ -6,6 +6,7 @@
   <ItemGroup>
     <ClInclude Include="RenderDevice.h" />
     <ClInclude Include="RenderSwapchain.h" />
+    <ClInclude Include="RenderPipeline.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="shaders">

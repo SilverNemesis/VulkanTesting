@@ -150,6 +150,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="RenderDevice.h" />
+    <ClInclude Include="RenderPipeline.h" />
     <ClInclude Include="RenderSwapchain.h" />
   </ItemGroup>
   <ItemGroup>
