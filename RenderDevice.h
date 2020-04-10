@@ -115,7 +115,7 @@ public:
         buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
         if (vkCreateBuffer(device_, &buffer_info, nullptr, &buffer) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create buffer!");
+            throw std::runtime_error("failed to create buffer");
         }
 
         VkMemoryRequirements memory_requirements;
@@ -127,7 +127,7 @@ public:
         allocate_info.memoryTypeIndex = FindMemoryType(memory_requirements.memoryTypeBits, properties);
 
         if (vkAllocateMemory(device_, &allocate_info, nullptr, &buffer_memory) != VK_SUCCESS) {
-            throw std::runtime_error("failed to allocate buffer memory!");
+            throw std::runtime_error("failed to allocate buffer memory");
         }
 
         vkBindBufferMemory(device_, buffer, buffer_memory, 0);
@@ -525,6 +525,49 @@ private:
             }
         }
 
-        throw std::runtime_error("failed to find supported format!");
+        throw std::runtime_error("failed to find supported format");
+    }
+
+    VkCommandBuffer BeginCommands() {
+        VkCommandBufferAllocateInfo allocate_info = {};
+        allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocate_info.commandPool = command_pool_;
+        allocate_info.commandBufferCount = 1;
+
+        VkCommandBuffer command_buffer;
+        vkAllocateCommandBuffers(device_, &allocate_info, &command_buffer);
+
+        VkCommandBufferBeginInfo begin_info = {};
+        begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+        vkBeginCommandBuffer(command_buffer, &begin_info);
+
+        return command_buffer;
+    }
+
+    void EndCommands(VkCommandBuffer command_buffer) {
+        vkEndCommandBuffer(command_buffer);
+
+        VkSubmitInfo submit_info = {};
+        submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submit_info.commandBufferCount = 1;
+        submit_info.pCommandBuffers = &command_buffer;
+
+        vkQueueSubmit(graphics_queue_, 1, &submit_info, VK_NULL_HANDLE);
+        vkQueueWaitIdle(graphics_queue_);
+
+        vkFreeCommandBuffers(device_, command_pool_, 1, &command_buffer);
+    }
+
+    void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
+        VkCommandBuffer commandBuffer = BeginCommands();
+
+        VkBufferCopy copyRegion = {};
+        copyRegion.size = size;
+        vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+
+        EndCommands(commandBuffer);
     }
 };
