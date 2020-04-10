@@ -149,7 +149,7 @@ private:
         create_info.clipped = VK_TRUE;
 
         if (vkCreateSwapchainKHR(render_device_.device_, &create_info, nullptr, &swapchain_) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create swap chain!");
+            throw std::runtime_error("failed to create swap chain");
         }
 
         vkGetSwapchainImagesKHR(render_device_.device_, swapchain_, &render_device_.image_count_, nullptr);
