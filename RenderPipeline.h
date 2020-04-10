@@ -135,7 +135,7 @@ private:
         render_pass_Info.pDependencies = &dependency;
 
         if (vkCreateRenderPass(render_device_.device_, &render_pass_Info, nullptr, &render_pass_) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create render pass!");
+            throw std::runtime_error("failed to create render pass");
         }
     }
 
@@ -166,7 +166,7 @@ private:
         layout_info.pBindings = bindings.data();
 
         if (vkCreateDescriptorSetLayout(render_device_.device_, &layout_info, nullptr, &descriptor_set_layout_) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create descriptor set layout!");
+            throw std::runtime_error("failed to create descriptor set layout");
         }
     }
 
@@ -180,7 +180,7 @@ private:
         allocate_info.commandBufferCount = (uint32_t)command_buffers_.size();
 
         if (vkAllocateCommandBuffers(render_device_.device_, &allocate_info, command_buffers_.data()) != VK_SUCCESS) {
-            throw std::runtime_error("failed to allocate command buffers!");
+            throw std::runtime_error("failed to allocate command buffers");
         }
     }
 
@@ -275,7 +275,7 @@ private:
         pipeline_layout_info.pSetLayouts = &descriptor_set_layout_;
 
         if (vkCreatePipelineLayout(render_device_.device_, &pipeline_layout_info, nullptr, &pipeline_layout_) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create pipeline layout!");
+            throw std::runtime_error("failed to create pipeline layout");
         }
 
         VkGraphicsPipelineCreateInfo pipeline_info = {};
@@ -295,7 +295,7 @@ private:
         pipeline_info.basePipelineHandle = VK_NULL_HANDLE;
 
         if (vkCreateGraphicsPipelines(render_device_.device_, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &graphics_pipeline_) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create graphics pipeline!");
+            throw std::runtime_error("failed to create graphics pipeline");
         }
     }
 
