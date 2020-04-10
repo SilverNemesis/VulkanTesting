@@ -1,5 +1,6 @@
 #include <fstream>
 #include <stdexcept>
+#include <string>
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -19,35 +20,8 @@
 #include "RenderDevice.h"
 #include "RenderSwapchain.h"
 #include "RenderPipeline.h"
-
-struct Vertex_Color {
-    glm::vec3 pos;
-    glm::vec3 color;
-
-    bool operator==(const Vertex_Color& other) const {
-        return pos == other.pos && color == other.color;
-    }
-
-    static VkVertexInputBindingDescription getBindingDescription() {
-        static VkVertexInputBindingDescription bindingDescription = {0, sizeof(Vertex_Color), VK_VERTEX_INPUT_RATE_VERTEX};
-        return bindingDescription;
-    }
-
-    static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() {
-        static std::vector<VkVertexInputAttributeDescription> attributeDescriptions = {{
-            {0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex_Color, pos)},
-            {1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex_Color, color)}
-            }};
-        return attributeDescriptions;
-    }
-};
-
-struct Vertex_Color_Hash {
-    size_t operator()(Vertex_Color const& vertex) const {
-        return std::hash<glm::vec3>()(vertex.pos) ^ std::hash<glm::vec3>()(vertex.color);
-    }
-};
-
+#include "Geometry.h"
+#include "Geometry_Color.h"
 
 class Application {
 public:
@@ -77,6 +51,23 @@ public:
         byte_code = ReadFile("shaders/color/frag.spv");
         VkShaderModule fragment_shader_module = render_device_.CreateShaderModule(byte_code.data(), byte_code.size());
         render_pipeline_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 0, render_swapchain_);
+
+        std::vector<glm::vec3> vertices{};
+        std::vector<std::vector<uint32_t>> faces{};
+        Geometry::CreateCube(vertices, faces);
+
+        std::vector<glm::vec3> colors = {
+            {1.0, 1.0, 1.0},
+            {1.0, 0.0, 0.0},
+            {0.0, 1.0, 0.0},
+            {0.0, 0.0, 1.0},
+            {1.0, 1.0, 0.0},
+            {1.0, 0.0, 1.0},
+        };
+
+        Geometry_Color geometry{};
+        geometry.AddFaces(vertices, faces, colors);
+        render_device_.CreateIndexedPrimitive<Vertex_Color, uint32_t>(geometry.vertices, geometry.indices, primitive_);
     }
 
     void Run() {
@@ -96,6 +87,7 @@ public:
         vkDeviceWaitIdle(render_device_.device_);
         render_pipeline_.Destroy();
         render_swapchain_.Destroy();
+        render_device_.DestroyIndexedPrimitive(primitive_);
         render_device_.Destroy();
         SDL_DestroyWindow(window_);
         SDL_Quit();
@@ -107,7 +99,7 @@ private:
     int window_height_;
     bool window_minimized_ = false;
     bool window_closed_ = false;
-    RenderDevice render_device_;
+    RenderDevice render_device_{};
     RenderSwapchain render_swapchain_{render_device_};
     RenderPipeline render_pipeline_{render_device_, Vertex_Color::getBindingDescription(), Vertex_Color::getAttributeDescriptions()};
     struct UniformBufferObject {
@@ -115,6 +107,8 @@ private:
         glm::mat4 view;
         glm::mat4 proj;
     };
+
+    IndexedPrimitive primitive_{};
 
     static void CreateSurface(void* window, VkInstance& instance, VkSurfaceKHR& surface) {
         if (!SDL_Vulkan_CreateSurface((SDL_Window*)window, instance, &surface)) {
@@ -172,7 +166,7 @@ private:
         std::ifstream file(file_name, std::ios::ate | std::ios::binary);
 
         if (!file.is_open()) {
-            throw std::runtime_error("failed to open file!");
+            throw std::runtime_error(std::string{"failed to open file "} + file_name);
         }
 
         size_t file_size = (size_t)file.tellg();

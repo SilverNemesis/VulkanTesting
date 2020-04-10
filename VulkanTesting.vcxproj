@@ -149,6 +149,8 @@
     <ClCompile Include="Application.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Geometry.h" />
+    <ClInclude Include="Geometry_Color.h" />
     <ClInclude Include="RenderDevice.h" />
     <ClInclude Include="RenderPipeline.h" />
     <ClInclude Include="RenderSwapchain.h" />

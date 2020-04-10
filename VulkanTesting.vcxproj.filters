@@ -7,6 +7,8 @@
     <ClInclude Include="RenderDevice.h" />
     <ClInclude Include="RenderSwapchain.h" />
     <ClInclude Include="RenderPipeline.h" />
+    <ClInclude Include="Geometry.h" />
+    <ClInclude Include="Geometry_Color.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="shaders">
