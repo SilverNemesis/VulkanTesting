@@ -8,24 +8,33 @@
 #include <vulkan/vulkan.h>
 #pragma comment(lib, "vulkan-1.lib")
 
+class IndexedPrimitive {
+public:
+    VkBuffer vertex_buffer_;
+    VkDeviceMemory vertex_buffer_memory_;
+    VkBuffer index_buffer_;
+    VkDeviceMemory index_buffer_memory_;
+    uint32_t index_count_;
+};
+
 class RenderDevice {
 public:
     static void (*Log)(const char* format, ...);
 
-    VkSurfaceKHR surface_;
+    VkSurfaceKHR surface_ = nullptr;
     VkPhysicalDevice physical_device_ = VK_NULL_HANDLE;
     VkSampleCountFlagBits msaa_samples_ = VK_SAMPLE_COUNT_1_BIT;
-    uint32_t graphics_family_index_;
-    uint32_t present_family_index_;
-    VkDevice device_;
-    VkQueue graphics_queue_;
-    VkQueue present_queue_;
-    VkCommandPool command_pool_;
-    VkSurfaceCapabilitiesKHR capabilities_;
-    uint32_t image_count_;
-    VkSurfaceFormatKHR surface_format_;
-    VkFormat depth_format_;
-    VkPresentModeKHR present_mode_;
+    uint32_t graphics_family_index_ = 0;
+    uint32_t present_family_index_ = 0;
+    VkDevice device_ = nullptr;
+    VkQueue graphics_queue_ = nullptr;
+    VkQueue present_queue_ = nullptr;
+    VkCommandPool command_pool_ = nullptr;
+    VkSurfaceCapabilitiesKHR capabilities_{};
+    uint32_t image_count_ = 0;
+    VkSurfaceFormatKHR surface_format_{};
+    VkFormat depth_format_ = VK_FORMAT_UNDEFINED;
+    VkPresentModeKHR present_mode_ = VK_PRESENT_MODE_IMMEDIATE_KHR;
 
     void Initialize(uint32_t window_width, uint32_t window_height, std::vector<const char*>& required_extensions, void (*CreateSurface)(void* window, VkInstance& instance, VkSurfaceKHR& surface), void* window) {
         CreateInstance(required_extensions);
@@ -136,6 +145,51 @@ public:
         }
 
         return shader_module;
+    }
+
+    template <class Vertex, class Index>
+    void CreateIndexedPrimitive(std::vector<Vertex>& vertices, std::vector<Index>& indices, IndexedPrimitive& primitive) {
+        VkDeviceSize bufferSize = vertices.size() * sizeof(vertices[0]);
+
+        VkBuffer stagingBuffer;
+        VkDeviceMemory stagingBufferMemory;
+        CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+
+        void* data;
+        vkMapMemory(device_, stagingBufferMemory, 0, bufferSize, 0, &data);
+        memcpy(data, vertices.data(), (size_t)bufferSize);
+        vkUnmapMemory(device_, stagingBufferMemory);
+
+        CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, primitive.vertex_buffer_, primitive.vertex_buffer_memory_);
+
+        CopyBuffer(stagingBuffer, primitive.vertex_buffer_, bufferSize);
+
+        vkDestroyBuffer(device_, stagingBuffer, nullptr);
+        vkFreeMemory(device_, stagingBufferMemory, nullptr);
+
+        primitive.index_count_ = static_cast<uint32_t>(indices.size());
+
+        bufferSize = indices.size() * sizeof(indices[0]);
+
+        CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+
+        vkMapMemory(device_, stagingBufferMemory, 0, bufferSize, 0, &data);
+        memcpy(data, indices.data(), (size_t)bufferSize);
+        vkUnmapMemory(device_, stagingBufferMemory);
+
+        CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, primitive.index_buffer_, primitive.index_buffer_memory_);
+
+        CopyBuffer(stagingBuffer, primitive.index_buffer_, bufferSize);
+
+        vkDestroyBuffer(device_, stagingBuffer, nullptr);
+        vkFreeMemory(device_, stagingBufferMemory, nullptr);
+    }
+
+    void DestroyIndexedPrimitive(IndexedPrimitive& primitive) {
+        vkDestroyBuffer(device_, primitive.index_buffer_, nullptr);
+        vkFreeMemory(device_, primitive.index_buffer_memory_, nullptr);
+        vkDestroyBuffer(device_, primitive.vertex_buffer_, nullptr);
+        vkFreeMemory(device_, primitive.vertex_buffer_memory_, nullptr);
     }
 
 private:
