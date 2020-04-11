@@ -207,7 +207,7 @@ private:
 
         VkApplicationInfo application_info = {};
         application_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-        application_info.pApplicationName = "Hello Triangle";
+        application_info.pApplicationName = "Vulkan Testing";
         application_info.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
         application_info.pEngineName = "No Engine";
         application_info.engineVersion = VK_MAKE_VERSION(1, 0, 0);
@@ -478,6 +478,7 @@ private:
     void CreateCommandPool() {
         VkCommandPoolCreateInfo pool_info = {};
         pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
         pool_info.queueFamilyIndex = graphics_family_index_;
 
         if (vkCreateCommandPool(device_, &pool_info, nullptr, &command_pool_) != VK_SUCCESS) {

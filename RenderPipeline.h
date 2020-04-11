@@ -3,7 +3,7 @@
 #include "RenderDevice.h"
 #include "RenderSwapchain.h"
 
-class RenderPipeline : RenderSwapchain::Pipeline {
+class RenderPipeline {
 public:
     VkRenderPass render_pass_{};
     VkPipelineLayout pipeline_layout_{};
@@ -21,14 +21,14 @@ public:
         render_device_(render_device_), binding_description_(binding_description), attribute_descriptions_(attribute_descriptions) {
     }
 
-    void Initialize(VkShaderModule& vertex_shader_module, VkShaderModule& fragment_shader_module, size_t uniform_buffer_size, uint32_t image_sampler_count, RenderSwapchain render_swapchain) {
+    void Initialize(VkShaderModule& vertex_shader_module, VkShaderModule& fragment_shader_module, size_t uniform_buffer_size, uint32_t image_sampler_count, RenderSwapchain& render_swapchain) {
         this->vertex_shader_module_ = vertex_shader_module;
         this->fragment_shader_module_ = fragment_shader_module;
         this->uniform_buffer_size_ = uniform_buffer_size;
         CreateUniformBuffers();
         CreateRenderPass();
         CreateDescriptorSetLayout(image_sampler_count);
-        render_swapchain.RegisterPipeline(this);
+        Rebuild(render_swapchain);
     }
 
     void Destroy() {
@@ -41,6 +41,7 @@ public:
     }
 
     void Reset() {
+        RenderDevice::Log("reseting pipeline");
         vkDestroyPipeline(render_device_.device_, graphics_pipeline_, nullptr);
         vkDestroyPipelineLayout(render_device_.device_, pipeline_layout_, nullptr);
         vkDestroyDescriptorPool(render_device_.device_, descriptor_pool_, nullptr);
@@ -52,10 +53,13 @@ public:
         }
     }
 
-    void Rebuild(RenderSwapchain* render_swapchain) {
-        render_swapchain->CreateFramebuffers(render_pass_, framebuffers_);
+    void Rebuild(RenderSwapchain& render_swapchain) {
+        RenderDevice::Log("rebuilding pipeline");
+        render_swapchain.CreateFramebuffers(render_pass_, framebuffers_);
         CreateCommandBuffers();
-        CreateGraphicsPipeline(render_swapchain->swapchain_extent_, render_pass_);
+        CreateGraphicsPipeline(render_swapchain.swapchain_extent_, render_pass_);
+        CreateDescriptorPool();
+        CreateDescriptorSets();
     }
 
 private:
@@ -167,6 +171,59 @@ private:
 
         if (vkCreateDescriptorSetLayout(render_device_.device_, &layout_info, nullptr, &descriptor_set_layout_) != VK_SUCCESS) {
             throw std::runtime_error("failed to create descriptor set layout");
+        }
+    }
+
+    void CreateDescriptorPool() {
+        std::vector<VkDescriptorPoolSize> pool_sizes{};
+        VkDescriptorPoolSize pool_size{};
+        pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        pool_size.descriptorCount = static_cast<uint32_t>(render_device_.image_count_);
+        pool_sizes.push_back(pool_size);
+
+        VkDescriptorPoolCreateInfo pool_info = {};
+        pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        pool_info.poolSizeCount = static_cast<uint32_t>(pool_sizes.size());
+        pool_info.pPoolSizes = pool_sizes.data();
+        pool_info.maxSets = static_cast<uint32_t>(render_device_.image_count_);
+
+        if (vkCreateDescriptorPool(render_device_.device_, &pool_info, nullptr, &descriptor_pool_) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create descriptor pool");
+        }
+    }
+
+    void CreateDescriptorSets() {
+        std::vector<VkDescriptorSetLayout> layouts(render_device_.image_count_, descriptor_set_layout_);
+        VkDescriptorSetAllocateInfo allocate_info = {};
+        allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocate_info.descriptorPool = descriptor_pool_;
+        allocate_info.descriptorSetCount = static_cast<uint32_t>(render_device_.image_count_);
+        allocate_info.pSetLayouts = layouts.data();
+
+        descriptor_sets_.resize(render_device_.image_count_);
+        if (vkAllocateDescriptorSets(render_device_.device_, &allocate_info, descriptor_sets_.data()) != VK_SUCCESS) {
+            throw std::runtime_error("failed to allocate descriptor sets");
+        }
+
+        for (size_t i = 0; i < render_device_.image_count_; i++) {
+            VkDescriptorBufferInfo buffer_info = {};
+            buffer_info.buffer = uniform_buffers_[i];
+            buffer_info.offset = 0;
+            buffer_info.range = uniform_buffer_size_;
+
+            std::vector<VkWriteDescriptorSet> descriptor_writes = {};
+
+            VkWriteDescriptorSet descriptor_set{};
+            descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptor_set.dstSet = descriptor_sets_[i];
+            descriptor_set.dstBinding = 0;
+            descriptor_set.dstArrayElement = 0;
+            descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            descriptor_set.descriptorCount = 1;
+            descriptor_set.pBufferInfo = &buffer_info;
+            descriptor_writes.push_back(descriptor_set);
+
+            vkUpdateDescriptorSets(render_device_.device_, static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
         }
     }
 

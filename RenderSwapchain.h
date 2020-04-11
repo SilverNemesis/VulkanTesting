@@ -6,12 +6,6 @@
 
 class RenderSwapchain {
 public:
-    class Pipeline {
-    public:
-        virtual void Rebuild(RenderSwapchain* render_swapchain) = 0;
-        virtual void Reset() = 0;
-    };
-
     VkSwapchainKHR swapchain_{};
     VkExtent2D swapchain_extent_{};
 
@@ -28,17 +22,9 @@ public:
 
     void Rebuild(uint32_t window_width, uint32_t window_height) {
         if (swapchain_extent_.width != window_width || swapchain_extent_.height != window_height) {
-            for (auto pipeline : pipelines_) {
-                pipeline->Reset();
-            }
-
             RenderDevice::Log("rebuilding swapchain x=%d, y=%d", window_width, window_height);
             Reset();
             Create(window_width, window_height);
-
-            for (auto pipeline : pipelines_) {
-                pipeline->Rebuild(this);
-            }
         }
     }
 
@@ -67,11 +53,6 @@ public:
         }
     }
 
-    void RegisterPipeline(Pipeline* pipeline) {
-        pipelines_.push_back(pipeline);
-        pipeline->Rebuild(this);
-    }
-
 private:
     RenderDevice& render_device_;
 
@@ -85,8 +66,6 @@ private:
     VkImage depth_image_{};
     VkDeviceMemory depth_image_memory_{};
     VkImageView depth_image_view_{};
-
-    std::vector<Pipeline*> pipelines_;
 
     void Create(uint32_t window_width, uint32_t window_height) {
         CreateSwapChain(window_width, window_height);
