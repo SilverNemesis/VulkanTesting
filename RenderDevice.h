@@ -37,12 +37,15 @@ public:
     VkPresentModeKHR present_mode_ = VK_PRESENT_MODE_IMMEDIATE_KHR;
 
     void Initialize(uint32_t window_width, uint32_t window_height, std::vector<const char*>& required_extensions, void (*CreateSurface)(void* window, VkInstance& instance, VkSurfaceKHR& surface), void* window) {
+#ifdef _DEBUG
+        debug_layers_ = true;
+#endif
         CreateInstance(required_extensions);
         Log("instance created");
-#ifdef _DEBUG
-        SetupDebugMessenger();
-        Log("debug messenger created");
-#endif
+        if (debug_layers_) {
+            SetupDebugMessenger();
+            Log("debug messenger created");
+        }
         CreateSurface(window, instance_, surface_);
         Log("surface created");
         PickPhysicalDevice();
@@ -71,10 +74,10 @@ public:
         Log("logical device destroyed");
         vkDestroySurfaceKHR(instance_, surface_, nullptr);
         Log("surface destroyed");
-#ifdef _DEBUG
-        DestroyDebugUtilsMessengerEXT(instance_, debug_messenger_, nullptr);
-        Log("debug messenger destroyed");
-#endif
+        if (debug_layers_) {
+            DestroyDebugUtilsMessengerEXT(instance_, debug_messenger_, nullptr);
+            Log("debug messenger destroyed");
+        }
         vkDestroyInstance(instance_, nullptr);
         Log("instance destroyed");
     }
@@ -226,17 +229,18 @@ public:
     }
 
 private:
+    bool debug_layers_ = false;
     VkInstance instance_;
     VkDebugUtilsMessengerEXT debug_messenger_;
     const std::vector<const char*> device_extensions_{VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     const std::vector<const char*> validation_layers_{"VK_LAYER_KHRONOS_validation"};
 
     void CreateInstance(std::vector<const char*>& required_extensions) {
-#ifdef _DEBUG
-        if (!CheckValidationLayerSupport()) {
-            throw std::runtime_error("validation layers are not available");
+        if (debug_layers_) {
+            if (!CheckValidationLayerSupport()) {
+                throw std::runtime_error("validation layers are not available");
+            }
         }
-#endif
 
         VkApplicationInfo application_info = {};
         application_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -250,23 +254,24 @@ private:
         create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
         create_info.pApplicationInfo = &application_info;
 
-#ifdef _DEBUG
-        required_extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-#endif
+        if (debug_layers_) {
+            required_extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        }
+
         create_info.enabledExtensionCount = static_cast<uint32_t>(required_extensions.size());
         create_info.ppEnabledExtensionNames = required_extensions.data();
 
-#ifdef _DEBUG
-        create_info.enabledLayerCount = static_cast<uint32_t>(validation_layers_.size());
-        create_info.ppEnabledLayerNames = validation_layers_.data();
+        if (debug_layers_) {
+            create_info.enabledLayerCount = static_cast<uint32_t>(validation_layers_.size());
+            create_info.ppEnabledLayerNames = validation_layers_.data();
 
-        VkDebugUtilsMessengerCreateInfoEXT debug_create_info;
-        PopulateDebugMessengerCreateInfo(debug_create_info);
-        create_info.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debug_create_info;
-#else
-        create_info.enabledLayerCount = 0;
-        create_info.pNext = nullptr;
-#endif
+            VkDebugUtilsMessengerCreateInfoEXT debug_create_info;
+            PopulateDebugMessengerCreateInfo(debug_create_info);
+            create_info.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debug_create_info;
+        } else {
+            create_info.enabledLayerCount = 0;
+            create_info.pNext = nullptr;
+        }
 
         if (vkCreateInstance(&create_info, nullptr, &instance_) != VK_SUCCESS) {
             throw std::runtime_error("failed to create instance");
@@ -493,12 +498,12 @@ private:
         create_info.enabledExtensionCount = static_cast<uint32_t>(device_extensions_.size());
         create_info.ppEnabledExtensionNames = device_extensions_.data();
 
-#ifdef _DEBUG
-        create_info.enabledLayerCount = static_cast<uint32_t>(validation_layers_.size());
-        create_info.ppEnabledLayerNames = validation_layers_.data();
-#else
-        create_info.enabledLayerCount = 0;
-#endif
+        if (debug_layers_) {
+            create_info.enabledLayerCount = static_cast<uint32_t>(validation_layers_.size());
+            create_info.ppEnabledLayerNames = validation_layers_.data();
+        } else {
+            create_info.enabledLayerCount = 0;
+        }
 
         if (vkCreateDevice(physical_device_, &create_info, nullptr, &device_) != VK_SUCCESS) {
             throw std::runtime_error("failed to create logical device");
