@@ -9,6 +9,7 @@
     <ClInclude Include="RenderPipeline.h" />
     <ClInclude Include="Geometry.h" />
     <ClInclude Include="Geometry_Color.h" />
+    <ClInclude Include="Geometry_Texture.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="shaders">
@@ -19,6 +20,9 @@
     </Filter>
     <Filter Include="shaders\texture">
       <UniqueIdentifier>{83ba9321-c23e-4fb9-a31f-9dbf04aedd80}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="shaders\notexture">
+      <UniqueIdentifier>{f9f7b986-e4da-418a-9491-5b2e5409d77a}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -33,6 +37,12 @@
     </None>
     <None Include="shaders\texture\shader.vert">
       <Filter>shaders\texture</Filter>
+    </None>
+    <None Include="shaders\notexture\shader.frag">
+      <Filter>shaders\notexture</Filter>
+    </None>
+    <None Include="shaders\notexture\shader.vert">
+      <Filter>shaders\notexture</Filter>
     </None>
   </ItemGroup>
 </Project>

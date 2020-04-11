@@ -151,6 +151,7 @@
   <ItemGroup>
     <ClInclude Include="Geometry.h" />
     <ClInclude Include="Geometry_Color.h" />
+    <ClInclude Include="Geometry_Texture.h" />
     <ClInclude Include="RenderDevice.h" />
     <ClInclude Include="RenderPipeline.h" />
     <ClInclude Include="RenderSwapchain.h" />
@@ -158,6 +159,8 @@
   <ItemGroup>
     <None Include="shaders\color\shader.frag" />
     <None Include="shaders\color\shader.vert" />
+    <None Include="shaders\notexture\shader.frag" />
+    <None Include="shaders\notexture\shader.vert" />
     <None Include="shaders\texture\shader.frag" />
     <None Include="shaders\texture\shader.vert" />
   </ItemGroup>

@@ -8,5 +8,8 @@
 glslc texture/shader.vert -o texture/vert.spv
 glslc texture/shader.frag -o texture/frag.spv
 
+glslc notexture/shader.vert -o notexture/vert.spv
+glslc notexture/shader.frag -o notexture/frag.spv
+
 glslc color/shader.vert -o color/vert.spv
 glslc color/shader.frag -o color/frag.spv
