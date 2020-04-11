@@ -1,6 +1,6 @@
 #pragma once
 
-#include "RenderDevice.h"
+#include "RenderEngine.h"
 
 #include <array>
 
@@ -18,8 +18,8 @@ public:
     std::vector<VkDeviceMemory> uniform_buffers_memory_{};
     std::vector<VkDescriptorSet> descriptor_sets_{};
 
-    RenderPipeline(RenderDevice& render_device_, VkVertexInputBindingDescription binding_description, std::vector<VkVertexInputAttributeDescription> attribute_descriptions, uint32_t subpass, uint32_t subpass_count, uint32_t image_sampler_count) :
-        render_device_(render_device_), binding_description_(binding_description), attribute_descriptions_(attribute_descriptions), subpass_(subpass), subpass_count_(subpass_count), image_sampler_count_(image_sampler_count) {
+    RenderPipeline(RenderEngine& render_engine, VkVertexInputBindingDescription binding_description, std::vector<VkVertexInputAttributeDescription> attribute_descriptions, uint32_t subpass, uint32_t subpass_count, uint32_t image_sampler_count) :
+        render_engine_(render_engine), binding_description_(binding_description), attribute_descriptions_(attribute_descriptions), subpass_(subpass), subpass_count_(subpass_count), image_sampler_count_(image_sampler_count) {
     }
 
     void Initialize(VkShaderModule& vertex_shader_module, VkShaderModule& fragment_shader_module, size_t uniform_buffer_size) {
@@ -34,31 +34,31 @@ public:
 
     void Destroy() {
         Reset();
-        vkDestroyDescriptorSetLayout(render_device_.device_, descriptor_set_layout_, nullptr);
-        vkDestroyRenderPass(render_device_.device_, render_pass_, nullptr);
+        vkDestroyDescriptorSetLayout(render_engine_.device_, descriptor_set_layout_, nullptr);
+        vkDestroyRenderPass(render_engine_.device_, render_pass_, nullptr);
         DestroyUniformBuffers();
-        vkDestroyShaderModule(render_device_.device_, fragment_shader_module_, nullptr);
-        vkDestroyShaderModule(render_device_.device_, vertex_shader_module_, nullptr);
+        vkDestroyShaderModule(render_engine_.device_, fragment_shader_module_, nullptr);
+        vkDestroyShaderModule(render_engine_.device_, vertex_shader_module_, nullptr);
     }
 
     void Reset() {
-        RenderDevice::Log("reseting pipeline");
-        vkDestroyPipeline(render_device_.device_, graphics_pipeline_, nullptr);
-        vkDestroyPipelineLayout(render_device_.device_, pipeline_layout_, nullptr);
-        vkDestroyDescriptorPool(render_device_.device_, descriptor_pool_, nullptr);
+        RenderEngine::Log("reseting pipeline");
+        vkDestroyPipeline(render_engine_.device_, graphics_pipeline_, nullptr);
+        vkDestroyPipelineLayout(render_engine_.device_, pipeline_layout_, nullptr);
+        vkDestroyDescriptorPool(render_engine_.device_, descriptor_pool_, nullptr);
 
-        vkFreeCommandBuffers(render_device_.device_, render_device_.command_pool_, static_cast<uint32_t>(command_buffers_.size()), command_buffers_.data());
+        vkFreeCommandBuffers(render_engine_.device_, render_engine_.command_pool_, static_cast<uint32_t>(command_buffers_.size()), command_buffers_.data());
 
         for (auto framebuffer : framebuffers_) {
-            vkDestroyFramebuffer(render_device_.device_, framebuffer, nullptr);
+            vkDestroyFramebuffer(render_engine_.device_, framebuffer, nullptr);
         }
     }
 
     void Rebuild() {
-        RenderDevice::Log("rebuilding pipeline");
-        render_device_.CreateFramebuffers(render_pass_, framebuffers_);
+        RenderEngine::Log("rebuilding pipeline");
+        render_engine_.CreateFramebuffers(render_pass_, framebuffers_);
         CreateCommandBuffers();
-        CreateGraphicsPipeline(render_device_.swapchain_extent_, render_pass_);
+        CreateGraphicsPipeline(render_engine_.swapchain_extent_, render_pass_);
         CreateDescriptorPool();
         CreateDescriptorSets();
     }
@@ -98,11 +98,11 @@ public:
             descriptor_writes.push_back(descriptor_set);
         }
 
-        vkUpdateDescriptorSets(render_device_.device_, static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
+        vkUpdateDescriptorSets(render_engine_.device_, static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
     }
 
 private:
-    RenderDevice& render_device_;
+    RenderEngine& render_engine_;
     VkVertexInputBindingDescription binding_description_;
     std::vector<VkVertexInputAttributeDescription> attribute_descriptions_;
     uint32_t subpass_;
@@ -114,8 +114,8 @@ private:
 
     void CreateRenderPass() {
         VkAttachmentDescription color_attachment = {};
-        color_attachment.format = render_device_.surface_format_.format;
-        color_attachment.samples = render_device_.msaa_samples_;
+        color_attachment.format = render_engine_.surface_format_.format;
+        color_attachment.samples = render_engine_.msaa_samples_;
         color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
         color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -124,8 +124,8 @@ private:
         color_attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
         VkAttachmentDescription depth_attachment = {};
-        depth_attachment.format = render_device_.depth_format_;
-        depth_attachment.samples = render_device_.msaa_samples_;
+        depth_attachment.format = render_engine_.depth_format_;
+        depth_attachment.samples = render_engine_.msaa_samples_;
         depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -134,7 +134,7 @@ private:
         depth_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
         VkAttachmentDescription color_attachment_resolve = {};
-        color_attachment_resolve.format = render_device_.surface_format_.format;
+        color_attachment_resolve.format = render_engine_.surface_format_.format;
         color_attachment_resolve.samples = VK_SAMPLE_COUNT_1_BIT;
         color_attachment_resolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         color_attachment_resolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -209,7 +209,7 @@ private:
         render_pass_Info.dependencyCount = static_cast<uint32_t>(dependencies.size());
         render_pass_Info.pDependencies = dependencies.data();
 
-        if (vkCreateRenderPass(render_device_.device_, &render_pass_Info, nullptr, &render_pass_) != VK_SUCCESS) {
+        if (vkCreateRenderPass(render_engine_.device_, &render_pass_Info, nullptr, &render_pass_) != VK_SUCCESS) {
             throw std::runtime_error("failed to create render pass");
         }
     }
@@ -240,7 +240,7 @@ private:
         layout_info.bindingCount = static_cast<uint32_t>(bindings.size());
         layout_info.pBindings = bindings.data();
 
-        if (vkCreateDescriptorSetLayout(render_device_.device_, &layout_info, nullptr, &descriptor_set_layout_) != VK_SUCCESS) {
+        if (vkCreateDescriptorSetLayout(render_engine_.device_, &layout_info, nullptr, &descriptor_set_layout_) != VK_SUCCESS) {
             throw std::runtime_error("failed to create descriptor set layout");
         }
     }
@@ -251,14 +251,14 @@ private:
         {
             VkDescriptorPoolSize pool_size{};
             pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            pool_size.descriptorCount = static_cast<uint32_t>(render_device_.image_count_);
+            pool_size.descriptorCount = static_cast<uint32_t>(render_engine_.image_count_);
             pool_sizes.push_back(pool_size);
         }
 
         for (uint32_t index = 0; index < image_sampler_count_; index++) {
             VkDescriptorPoolSize pool_size{};
             pool_size.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            pool_size.descriptorCount = static_cast<uint32_t>(render_device_.image_count_);
+            pool_size.descriptorCount = static_cast<uint32_t>(render_engine_.image_count_);
             pool_sizes.push_back(pool_size);
         }
 
@@ -266,29 +266,29 @@ private:
         pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         pool_info.poolSizeCount = static_cast<uint32_t>(pool_sizes.size());
         pool_info.pPoolSizes = pool_sizes.data();
-        pool_info.maxSets = static_cast<uint32_t>(render_device_.image_count_);
+        pool_info.maxSets = static_cast<uint32_t>(render_engine_.image_count_);
 
-        if (vkCreateDescriptorPool(render_device_.device_, &pool_info, nullptr, &descriptor_pool_) != VK_SUCCESS) {
+        if (vkCreateDescriptorPool(render_engine_.device_, &pool_info, nullptr, &descriptor_pool_) != VK_SUCCESS) {
             throw std::runtime_error("failed to create descriptor pool");
         }
     }
 
     void CreateDescriptorSets() {
-        std::vector<VkDescriptorSetLayout> layouts(render_device_.image_count_, descriptor_set_layout_);
+        std::vector<VkDescriptorSetLayout> layouts(render_engine_.image_count_, descriptor_set_layout_);
         VkDescriptorSetAllocateInfo allocate_info = {};
         allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         allocate_info.descriptorPool = descriptor_pool_;
-        allocate_info.descriptorSetCount = static_cast<uint32_t>(render_device_.image_count_);
+        allocate_info.descriptorSetCount = static_cast<uint32_t>(render_engine_.image_count_);
         allocate_info.pSetLayouts = layouts.data();
 
-        descriptor_sets_.resize(render_device_.image_count_);
-        if (vkAllocateDescriptorSets(render_device_.device_, &allocate_info, descriptor_sets_.data()) != VK_SUCCESS) {
+        descriptor_sets_.resize(render_engine_.image_count_);
+        if (vkAllocateDescriptorSets(render_engine_.device_, &allocate_info, descriptor_sets_.data()) != VK_SUCCESS) {
             throw std::runtime_error("failed to allocate descriptor sets");
         }
         std::vector<VkWriteDescriptorSet> descriptor_writes = {};
 
         if (image_sampler_count_ == 0) {
-            for (uint32_t image_index = 0; image_index < render_device_.image_count_; image_index++) {
+            for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
                 VkDescriptorBufferInfo buffer_info = {};
                 buffer_info.buffer = uniform_buffers_[image_index];
                 buffer_info.offset = 0;
@@ -305,7 +305,7 @@ private:
                 descriptor_writes.push_back(descriptor_set);
             }
 
-            vkUpdateDescriptorSets(render_device_.device_, static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
+            vkUpdateDescriptorSets(render_engine_.device_, static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
         }
     }
 
@@ -314,11 +314,11 @@ private:
 
         VkCommandBufferAllocateInfo allocate_info = {};
         allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        allocate_info.commandPool = render_device_.command_pool_;
+        allocate_info.commandPool = render_engine_.command_pool_;
         allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         allocate_info.commandBufferCount = (uint32_t)command_buffers_.size();
 
-        if (vkAllocateCommandBuffers(render_device_.device_, &allocate_info, command_buffers_.data()) != VK_SUCCESS) {
+        if (vkAllocateCommandBuffers(render_engine_.device_, &allocate_info, command_buffers_.data()) != VK_SUCCESS) {
             throw std::runtime_error("failed to allocate command buffers");
         }
     }
@@ -383,7 +383,7 @@ private:
         VkPipelineMultisampleStateCreateInfo multisampling = {};
         multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
         multisampling.sampleShadingEnable = VK_FALSE;
-        multisampling.rasterizationSamples = render_device_.msaa_samples_;
+        multisampling.rasterizationSamples = render_engine_.msaa_samples_;
 
         VkPipelineDepthStencilStateCreateInfo depth_stencil = {};
         depth_stencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
@@ -413,7 +413,7 @@ private:
         pipeline_layout_info.setLayoutCount = 1;
         pipeline_layout_info.pSetLayouts = &descriptor_set_layout_;
 
-        if (vkCreatePipelineLayout(render_device_.device_, &pipeline_layout_info, nullptr, &pipeline_layout_) != VK_SUCCESS) {
+        if (vkCreatePipelineLayout(render_engine_.device_, &pipeline_layout_info, nullptr, &pipeline_layout_) != VK_SUCCESS) {
             throw std::runtime_error("failed to create pipeline layout");
         }
 
@@ -433,25 +433,25 @@ private:
         pipeline_info.subpass = subpass_;
         pipeline_info.basePipelineHandle = VK_NULL_HANDLE;
 
-        if (vkCreateGraphicsPipelines(render_device_.device_, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &graphics_pipeline_) != VK_SUCCESS) {
+        if (vkCreateGraphicsPipelines(render_engine_.device_, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &graphics_pipeline_) != VK_SUCCESS) {
             throw std::runtime_error("failed to create graphics pipeline");
         }
     }
 
     void CreateUniformBuffers() {
-        uniform_buffers_.resize(render_device_.image_count_);
-        uniform_buffers_memory_.resize(render_device_.image_count_);
+        uniform_buffers_.resize(render_engine_.image_count_);
+        uniform_buffers_memory_.resize(render_engine_.image_count_);
 
-        for (size_t i = 0; i < render_device_.image_count_; i++) {
-            render_device_.CreateBuffer(uniform_buffer_size_, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        for (size_t i = 0; i < render_engine_.image_count_; i++) {
+            render_engine_.CreateBuffer(uniform_buffer_size_, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                 uniform_buffers_[i], uniform_buffers_memory_[i]);
         }
     }
 
     void DestroyUniformBuffers() {
         for (size_t i = 0; i < uniform_buffers_.size(); i++) {
-            vkDestroyBuffer(render_device_.device_, uniform_buffers_[i], nullptr);
-            vkFreeMemory(render_device_.device_, uniform_buffers_memory_[i], nullptr);
+            vkDestroyBuffer(render_engine_.device_, uniform_buffers_[i], nullptr);
+            vkFreeMemory(render_engine_.device_, uniform_buffers_memory_[i], nullptr);
         }
     }
 };

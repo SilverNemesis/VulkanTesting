@@ -24,7 +24,7 @@ struct IndexedPrimitive {
     uint32_t index_count_;
 };
 
-class RenderDevice {
+class RenderEngine {
 public:
     static void (*Log)(const char* format, ...);
 
@@ -143,7 +143,7 @@ public:
         CreateImage(swapchain_extent_.width, swapchain_extent_.height, 1, msaa_samples_, depth_format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depth_image_, depth_image_memory_);
         depth_image_view_ = CreateImageView(depth_image_, depth_format, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
 
-        RenderDevice::Log("swapchain created x=%d, y=%d", window_width, window_height);
+        RenderEngine::Log("swapchain created x=%d, y=%d", window_width, window_height);
     }
 
     void DestroySwapchain() {
@@ -161,7 +161,7 @@ public:
 
         vkDestroySwapchainKHR(device_, swapchain_, nullptr);
 
-        RenderDevice::Log("swapchain destroyed");
+        RenderEngine::Log("swapchain destroyed");
     }
 
     void RebuildSwapchain(uint32_t window_width, uint32_t window_height) {
@@ -529,7 +529,7 @@ private:
     }
 
     static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity, VkDebugUtilsMessageTypeFlagsEXT message_type, const VkDebugUtilsMessengerCallbackDataEXT* callback_data, void* user_data) {
-        RenderDevice::Log("%s", callback_data->pMessage);
+        RenderEngine::Log("%s", callback_data->pMessage);
         return VK_FALSE;
     }
 

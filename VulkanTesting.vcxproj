@@ -152,7 +152,7 @@
     <ClInclude Include="Geometry.h" />
     <ClInclude Include="Geometry_Color.h" />
     <ClInclude Include="Geometry_Texture.h" />
-    <ClInclude Include="RenderDevice.h" />
+    <ClInclude Include="RenderEngine.h" />
     <ClInclude Include="RenderPipeline.h" />
   </ItemGroup>
   <ItemGroup>
