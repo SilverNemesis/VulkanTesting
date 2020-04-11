@@ -61,22 +61,22 @@ private:
         }
     }
 
-    void AddTriangle(glm::vec3 color, glm::vec3& c0, glm::vec3& c1, glm::vec3& c2) {
+    void AddTriangle(glm::vec3 color, glm::vec3& vertex_0, glm::vec3& vertex_1, glm::vec3& vertex_2) {
         uint32_t base = static_cast<uint32_t>(vertices.size());
-        vertices.push_back({c0, color});
-        vertices.push_back({c1, color});
-        vertices.push_back({c2, color});
+        vertices.push_back({vertex_0, color});
+        vertices.push_back({vertex_1, color});
+        vertices.push_back({vertex_2, color});
         indices.push_back(base + 0);
         indices.push_back(base + 1);
         indices.push_back(base + 2);
     }
 
-    void AddSquare(glm::vec3 color, glm::vec3& c0, glm::vec3& c1, glm::vec3& c2, glm::vec3& c3) {
+    void AddSquare(glm::vec3 color, glm::vec3& vertex_0, glm::vec3& vertex_1, glm::vec3& vertex_2, glm::vec3& vertex_3) {
         uint32_t base = static_cast<uint32_t>(vertices.size());
-        vertices.push_back({c0, color});
-        vertices.push_back({c1, color});
-        vertices.push_back({c2, color});
-        vertices.push_back({c3, color});
+        vertices.push_back({vertex_0, color});
+        vertices.push_back({vertex_1, color});
+        vertices.push_back({vertex_2, color});
+        vertices.push_back({vertex_3, color});
         indices.push_back(base + 0);
         indices.push_back(base + 1);
         indices.push_back(base + 2);
@@ -85,13 +85,13 @@ private:
         indices.push_back(base + 0);
     }
 
-    void AddPentagon(glm::vec3 color, glm::vec3& c0, glm::vec3& c1, glm::vec3& c2, glm::vec3& c3, glm::vec3& c4) {
+    void AddPentagon(glm::vec3 color, glm::vec3& vertex_0, glm::vec3& vertex_1, glm::vec3& vertex_2, glm::vec3& vertex_3, glm::vec3& vertex_4) {
         uint32_t base = static_cast<uint32_t>(vertices.size());
-        vertices.push_back({c0, color});
-        vertices.push_back({c1, color});
-        vertices.push_back({c2, color});
-        vertices.push_back({c3, color});
-        vertices.push_back({c4, color});
+        vertices.push_back({vertex_0, color});
+        vertices.push_back({vertex_1, color});
+        vertices.push_back({vertex_2, color});
+        vertices.push_back({vertex_3, color});
+        vertices.push_back({vertex_4, color});
         indices.push_back(base + 0);
         indices.push_back(base + 3);
         indices.push_back(base + 4);
