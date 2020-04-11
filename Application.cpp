@@ -2,6 +2,7 @@
 #include <fstream>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -18,12 +19,26 @@
 #pragma comment(lib, "SDL2main.lib")
 #endif
 
+#ifdef MODEL
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tiny_obj_loader.h>
+
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+#endif
+
 #include "RenderDevice.h"
 #include "RenderSwapchain.h"
 #include "RenderPipeline.h"
 #include "Geometry.h"
 #include "Geometry_Color.h"
 #include "Geometry_Texture.h"
+#include "Texture.h"
+
+#ifdef MODEL
+static const char* MODEL_PATH = "models/chalet.obj";
+static const char* TEXTURE_PATH = "textures/chalet.jpg";
+#endif
 
 static const int MAX_FRAMES_IN_FLIGHT = 2;
 
@@ -51,13 +66,45 @@ public:
         render_device_.Initialize(window_width_, window_height_, required_extensions, CreateSurface, window_);
         render_swapchain_.Initialize(window_width_, window_height_);
 
+#ifdef MODEL
+        {
+            std::vector<unsigned char> byte_code{};
+            byte_code = ReadFile("shaders/texture/vert.spv");
+            VkShaderModule vertex_shader_module = render_device_.CreateShaderModule(byte_code.data(), byte_code.size());
+            byte_code = ReadFile("shaders/texture/frag.spv");
+            VkShaderModule fragment_shader_module = render_device_.CreateShaderModule(byte_code.data(), byte_code.size());
+            render_pipeline_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), render_swapchain_);
+        }
+
+        int texture_width, texture_height, texture_channels;
+        stbi_uc* pixels = stbi_load(TEXTURE_PATH, &texture_width, &texture_height, &texture_channels, STBI_rgb_alpha);
+
+        if (!pixels) {
+            throw std::runtime_error("failed to load texture image");
+        }
+
+        texture_.CreateImage(pixels, texture_width, texture_height);
+
+        stbi_image_free(pixels);
+
+        texture_.CreateTextureSampler(texture_.texture_sampler_, static_cast<float>(texture_.mip_levels_));
+
+        for (uint32_t image_index = 0; image_index < render_device_.image_count_; image_index++) {
+            render_pipeline_.UpdateDescriptorSet(image_index, texture_.texture_image_view_, texture_.texture_sampler_);
+        }
+
+        std::vector<Vertex_Texture> vertices;
+        std::vector<uint32_t> indices;
+        LoadModel(MODEL_PATH, vertices, indices);
+        render_device_.CreateIndexedPrimitive<Vertex_Texture, uint32_t>(vertices, indices, primitive_);
+#else
         {
             std::vector<unsigned char> byte_code{};
             byte_code = ReadFile("shaders/color/vert.spv");
             VkShaderModule vertex_shader_module = render_device_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = ReadFile("shaders/color/frag.spv");
             VkShaderModule fragment_shader_module = render_device_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_color_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 0, render_swapchain_);
+            render_pipeline_color_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), render_swapchain_);
         }
 
         {
@@ -66,7 +113,7 @@ public:
             VkShaderModule vertex_shader_module = render_device_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = ReadFile("shaders/notexture/frag.spv");
             VkShaderModule fragment_shader_module = render_device_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_texture_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 0, render_swapchain_);
+            render_pipeline_texture_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), render_swapchain_);
         }
 
         std::vector<glm::vec3> vertices{};
@@ -96,6 +143,7 @@ public:
         Geometry_Texture geometry_texture{};
         geometry_texture.AddFaces(vertices, faces, texture_coordinates);
         render_device_.CreateIndexedPrimitive<Vertex_Texture, uint32_t>(geometry_texture.vertices, geometry_texture.indices, texture_primitive_);
+#endif
 
         CreateSyncObjects();
     }
@@ -115,11 +163,21 @@ public:
     void Shutdown() {
         SDL_Log("application shutdown");
         vkDeviceWaitIdle(render_device_.device_);
+#ifdef MODEL
+        render_pipeline_.Destroy();
+#else
         render_pipeline_texture_.Destroy();
         render_pipeline_color_.Destroy();
+#endif
         render_swapchain_.Destroy();
+#ifdef MODEL
+        render_device_.DestroyIndexedPrimitive(primitive_);
+        texture_.DestroyTextureSampler();
+        texture_.DestroyImage();
+#else
         render_device_.DestroyIndexedPrimitive(texture_primitive_);
         render_device_.DestroyIndexedPrimitive(color_primitive_);
+#endif
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             vkDestroySemaphore(render_device_.device_, render_finished_semaphores_[i], nullptr);
             vkDestroySemaphore(render_device_.device_, image_available_semaphores_[i], nullptr);
@@ -138,13 +196,15 @@ private:
     bool window_closed_ = false;
     RenderDevice render_device_{};
     RenderSwapchain render_swapchain_{render_device_};
-    RenderPipeline render_pipeline_color_{render_device_, Vertex_Color::getBindingDescription(), Vertex_Color::getAttributeDescriptions(), 0, 2};
-    RenderPipeline render_pipeline_texture_{render_device_, Vertex_Texture::getBindingDescription(), Vertex_Texture::getAttributeDescriptions(), 1, 2};
+    RenderPipeline render_pipeline_{render_device_, Vertex_Texture::getBindingDescription(), Vertex_Texture::getAttributeDescriptions(), 0, 1, 1};
+    RenderPipeline render_pipeline_color_{render_device_, Vertex_Color::getBindingDescription(), Vertex_Color::getAttributeDescriptions(), 0, 2, 0};
+    RenderPipeline render_pipeline_texture_{render_device_, Vertex_Texture::getBindingDescription(), Vertex_Texture::getAttributeDescriptions(), 1, 2, 0};
     struct UniformBufferObject {
         glm::mat4 model;
         glm::mat4 view;
         glm::mat4 proj;
     };
+    UniformBufferObject uniform_buffer_{};
     UniformBufferObject uniform_buffer_1_{};
     UniformBufferObject uniform_buffer_2_{};
     std::vector<VkSemaphore> image_available_semaphores_;
@@ -153,6 +213,8 @@ private:
     std::vector<VkFence> images_in_flight_;
     size_t current_frame_ = 0;
 
+    IndexedPrimitive primitive_{};
+    Texture texture_{render_device_};
     IndexedPrimitive color_primitive_{};
     IndexedPrimitive texture_primitive_{};
 
@@ -164,11 +226,22 @@ private:
 
     void RecreateSwapchain() {
         vkDeviceWaitIdle(render_device_.device_);
+#ifdef MODEL
+        render_pipeline_.Reset();
+#else
         render_pipeline_texture_.Reset();
         render_pipeline_color_.Reset();
+#endif
         render_swapchain_.Rebuild(window_width_, window_height_);
+#ifdef MODEL
+        render_pipeline_.Rebuild(render_swapchain_);
+        for (uint32_t image_index = 0; image_index < render_device_.image_count_; image_index++) {
+            render_pipeline_.UpdateDescriptorSet(image_index, texture_.texture_image_view_, texture_.texture_sampler_);
+        }
+#else
         render_pipeline_color_.Rebuild(render_swapchain_);
         render_pipeline_texture_.Rebuild(render_swapchain_);
+#endif
     }
 
     void CreateSyncObjects() {
@@ -233,6 +306,12 @@ private:
         auto current_time = std::chrono::high_resolution_clock::now();
         float total_time = std::chrono::duration<float, std::chrono::seconds::period>(current_time - start_time).count();
 
+#ifdef MODEL
+        uniform_buffer_.model = glm::scale(glm::rotate(glm::mat4(1.0f), total_time * glm::radians(30.0f), glm::vec3(0.0f, 0.0f, 1.0f)), glm::vec3(1.2f, 1.2f, 1.2f));
+        uniform_buffer_.view = glm::lookAt(glm::vec3(2.0f, 2.4f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        uniform_buffer_.proj = glm::perspective(glm::radians(45.0f), render_swapchain_.swapchain_extent_.width / (float)render_swapchain_.swapchain_extent_.height, 0.1f, 10.0f);
+        uniform_buffer_.proj[1][1] *= -1;
+#else
         float offset_1 = std::sin(total_time);
         float offset_2 = std::cos(total_time);
 
@@ -255,6 +334,7 @@ private:
         uniform_buffer_2_.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 4.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         uniform_buffer_2_.proj = glm::perspective(glm::radians(45.0f), render_swapchain_.swapchain_extent_.width / (float)render_swapchain_.swapchain_extent_.height, 0.1f, 100.0f);
         uniform_buffer_2_.proj[1][1] *= -1;
+#endif
     }
 
     void Render() {
@@ -275,6 +355,41 @@ private:
         VkCommandBufferBeginInfo begin_info = {};
         begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
+#ifdef MODEL
+        if (vkBeginCommandBuffer(render_pipeline_.command_buffers_[image_index], &begin_info) != VK_SUCCESS) {
+            throw std::runtime_error("failed to begin recording command buffer");
+        }
+
+        VkRenderPassBeginInfo render_pass_info = {};
+        render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        render_pass_info.renderPass = render_pipeline_.render_pass_;
+        render_pass_info.framebuffer = render_pipeline_.framebuffers_[image_index];
+        render_pass_info.renderArea.offset = {0, 0};
+        render_pass_info.renderArea.extent = render_swapchain_.swapchain_extent_;
+
+        std::array<VkClearValue, 2> clear_values = {};
+        clear_values[0].color = {0.0f, 0.0f, 0.0f, 1.0f};
+        clear_values[1].depthStencil = {1.0f, 0};
+
+        render_pass_info.clearValueCount = static_cast<uint32_t>(clear_values.size());
+        render_pass_info.pClearValues = clear_values.data();
+
+        vkCmdBeginRenderPass(render_pipeline_.command_buffers_[image_index], &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
+
+        vkCmdBindPipeline(render_pipeline_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_.graphics_pipeline_);
+        VkBuffer vertex_buffers[] = {primitive_.vertex_buffer_};
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(render_pipeline_.command_buffers_[image_index], 0, 1, vertex_buffers, offsets);
+        vkCmdBindIndexBuffer(render_pipeline_.command_buffers_[image_index], primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(render_pipeline_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_.pipeline_layout_, 0, 1, &render_pipeline_.descriptor_sets_[image_index], 0, nullptr);
+        vkCmdDrawIndexed(render_pipeline_.command_buffers_[image_index], primitive_.index_count_, 1, 0, 0, 0);
+
+        vkCmdEndRenderPass(render_pipeline_.command_buffers_[image_index]);
+
+        if (vkEndCommandBuffer(render_pipeline_.command_buffers_[image_index]) != VK_SUCCESS) {
+            throw std::runtime_error("failed to record command buffer");
+        }
+#else
         if (vkBeginCommandBuffer(render_pipeline_color_.command_buffers_[image_index], &begin_info) != VK_SUCCESS) {
             throw std::runtime_error("failed to begin recording command buffer");
         }
@@ -317,9 +432,15 @@ private:
         if (vkEndCommandBuffer(render_pipeline_color_.command_buffers_[image_index]) != VK_SUCCESS) {
             throw std::runtime_error("failed to record command buffer");
         }
+#endif
 
         void* data;
 
+#ifdef MODEL
+        vkMapMemory(render_device_.device_, render_pipeline_.uniform_buffers_memory_[image_index], 0, sizeof(uniform_buffer_), 0, &data);
+        memcpy(data, &uniform_buffer_, sizeof(uniform_buffer_));
+        vkUnmapMemory(render_device_.device_, render_pipeline_.uniform_buffers_memory_[image_index]);
+#else
         vkMapMemory(render_device_.device_, render_pipeline_color_.uniform_buffers_memory_[image_index], 0, sizeof(uniform_buffer_1_), 0, &data);
         memcpy(data, &uniform_buffer_1_, sizeof(uniform_buffer_1_));
         vkUnmapMemory(render_device_.device_, render_pipeline_color_.uniform_buffers_memory_[image_index]);
@@ -327,6 +448,7 @@ private:
         vkMapMemory(render_device_.device_, render_pipeline_texture_.uniform_buffers_memory_[image_index], 0, sizeof(uniform_buffer_2_), 0, &data);
         memcpy(data, &uniform_buffer_2_, sizeof(uniform_buffer_2_));
         vkUnmapMemory(render_device_.device_, render_pipeline_texture_.uniform_buffers_memory_[image_index]);
+#endif
 
         //auto end_time = std::chrono::high_resolution_clock::now();
         //auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - beg_time).count();
@@ -347,7 +469,11 @@ private:
         submit_info.pWaitDstStageMask = wait_stages;
 
         submit_info.commandBufferCount = 1;
+#ifdef MODEL
+        submit_info.pCommandBuffers = &render_pipeline_.command_buffers_[image_index];
+#else
         submit_info.pCommandBuffers = &render_pipeline_color_.command_buffers_[image_index];
+#endif
 
         VkSemaphore signal_semaphores[] = {render_finished_semaphores_[current_frame_]};
         submit_info.signalSemaphoreCount = 1;
@@ -363,9 +489,9 @@ private:
         present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
         present_info.waitSemaphoreCount = 1;
         present_info.pWaitSemaphores = signal_semaphores;
-        VkSwapchainKHR swapChains[] = {render_swapchain_.swapchain_};
+        VkSwapchainKHR swap_chains[] = {render_swapchain_.swapchain_};
         present_info.swapchainCount = 1;
-        present_info.pSwapchains = swapChains;
+        present_info.pSwapchains = swap_chains;
         present_info.pImageIndices = &image_index;
 
         result = vkQueuePresentKHR(render_device_.present_queue_, &present_info);
@@ -378,6 +504,45 @@ private:
 
         current_frame_ = (current_frame_ + 1) % MAX_FRAMES_IN_FLIGHT;
     }
+
+#ifdef MODEL
+    void LoadModel(const char* fileName, std::vector<Vertex_Texture>& vertices, std::vector<uint32_t>& indices) {
+        tinyobj::attrib_t attrib;
+        std::vector<tinyobj::shape_t> shapes;
+        std::vector<tinyobj::material_t> materials;
+        std::string warn, err;
+
+        if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, fileName)) {
+            throw std::runtime_error(warn + err);
+        }
+
+        std::unordered_map<Vertex_Texture, uint32_t, Vertex_Texture_Hash> unique_vertices = {};
+
+        for (const auto& shape : shapes) {
+            for (const auto& index : shape.mesh.indices) {
+                Vertex_Texture vertex = {};
+
+                vertex.pos = {
+                    attrib.vertices[static_cast<size_t>(index.vertex_index) * 3 + 0],
+                    attrib.vertices[static_cast<size_t>(index.vertex_index) * 3 + 1],
+                    attrib.vertices[static_cast<size_t>(index.vertex_index) * 3 + 2]
+                };
+
+                vertex.texCoord = {
+                    attrib.texcoords[static_cast<size_t>(index.texcoord_index) * 2 + 0],
+                    1.0f - attrib.texcoords[static_cast<size_t>(index.texcoord_index) * 2 + 1]
+                };
+
+                if (unique_vertices.count(vertex) == 0) {
+                    unique_vertices[vertex] = static_cast<uint32_t>(vertices.size());
+                    vertices.push_back(vertex);
+                }
+
+                indices.push_back(unique_vertices[vertex]);
+            }
+        }
+    }
+#endif
 
     std::vector<unsigned char> ReadFile(const std::string& file_name) {
         std::ifstream file(file_name, std::ios::ate | std::ios::binary);
