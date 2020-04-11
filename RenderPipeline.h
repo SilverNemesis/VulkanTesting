@@ -6,7 +6,6 @@
 
 class RenderPipeline {
 public:
-    VkRenderPass render_pass_{};
     VkPipelineLayout pipeline_layout_{};
     VkPipeline graphics_pipeline_{};
     VkDescriptorPool descriptor_pool_{};
@@ -18,7 +17,7 @@ public:
     std::vector<VkDescriptorSet> descriptor_sets_{};
 
     RenderPipeline(RenderEngine& render_engine, VkVertexInputBindingDescription binding_description, std::vector<VkVertexInputAttributeDescription> attribute_descriptions, uint32_t subpass, uint32_t subpass_count, uint32_t image_sampler_count) :
-        render_engine_(render_engine), binding_description_(binding_description), attribute_descriptions_(attribute_descriptions), subpass_(subpass), subpass_count_(subpass_count), image_sampler_count_(image_sampler_count) {
+        render_engine_(render_engine), binding_description_(binding_description), attribute_descriptions_(attribute_descriptions), subpass_(subpass), image_sampler_count_(image_sampler_count) {
     }
 
     void Initialize(VkShaderModule& vertex_shader_module, VkShaderModule& fragment_shader_module, size_t uniform_buffer_size) {
@@ -26,7 +25,6 @@ public:
         this->fragment_shader_module_ = fragment_shader_module;
         this->uniform_buffer_size_ = uniform_buffer_size;
         CreateUniformBuffers();
-        CreateRenderPass();
         CreateDescriptorSetLayout();
         Rebuild();
     }
@@ -34,7 +32,6 @@ public:
     void Destroy() {
         Reset();
         vkDestroyDescriptorSetLayout(render_engine_.device_, descriptor_set_layout_, nullptr);
-        vkDestroyRenderPass(render_engine_.device_, render_pass_, nullptr);
         DestroyUniformBuffers();
         vkDestroyShaderModule(render_engine_.device_, fragment_shader_module_, nullptr);
         vkDestroyShaderModule(render_engine_.device_, vertex_shader_module_, nullptr);
@@ -53,8 +50,8 @@ public:
 
     void Rebuild() {
         RenderEngine::Log("rebuilding pipeline");
-        render_engine_.CreateFramebuffers(render_pass_, framebuffers_);
-        CreateGraphicsPipeline(render_engine_.swapchain_extent_, render_pass_);
+        render_engine_.CreateFramebuffers(render_engine_.render_pass_, framebuffers_);
+        CreateGraphicsPipeline(render_engine_.swapchain_extent_, render_engine_.render_pass_);
         CreateDescriptorPool();
         CreateDescriptorSets();
     }
@@ -102,113 +99,10 @@ private:
     VkVertexInputBindingDescription binding_description_;
     std::vector<VkVertexInputAttributeDescription> attribute_descriptions_;
     uint32_t subpass_;
-    uint32_t subpass_count_;
     uint32_t image_sampler_count_;
     VkShaderModule vertex_shader_module_{};
     VkShaderModule fragment_shader_module_{};
     size_t uniform_buffer_size_{};
-
-    void CreateRenderPass() {
-        VkAttachmentDescription color_attachment = {};
-        color_attachment.format = render_engine_.surface_format_.format;
-        color_attachment.samples = render_engine_.msaa_samples_;
-        color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-        color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        color_attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-        VkAttachmentDescription depth_attachment = {};
-        depth_attachment.format = render_engine_.depth_format_;
-        depth_attachment.samples = render_engine_.msaa_samples_;
-        depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        depth_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        depth_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-        VkAttachmentDescription color_attachment_resolve = {};
-        color_attachment_resolve.format = render_engine_.surface_format_.format;
-        color_attachment_resolve.samples = VK_SAMPLE_COUNT_1_BIT;
-        color_attachment_resolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        color_attachment_resolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-        color_attachment_resolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        color_attachment_resolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        color_attachment_resolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        color_attachment_resolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-        VkAttachmentReference color_attachment_reference = {};
-        color_attachment_reference.attachment = 0;
-        color_attachment_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-        VkAttachmentReference depth_attachment_reference = {};
-        depth_attachment_reference.attachment = 1;
-        depth_attachment_reference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-        VkAttachmentReference color_attachment_resolve_reference = {};
-        color_attachment_resolve_reference.attachment = 2;
-        color_attachment_resolve_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-        std::vector<VkSubpassDescription> subpasses = {};
-        std::vector<VkSubpassDependency> dependencies = {};
-
-        for (uint32_t i = 0; i < subpass_count_; i++) {
-            VkSubpassDescription subpass = {};
-            subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-            subpass.colorAttachmentCount = 1;
-            subpass.pColorAttachments = &color_attachment_reference;
-            subpass.pDepthStencilAttachment = &depth_attachment_reference;
-            subpass.pResolveAttachments = &color_attachment_resolve_reference;
-            subpasses.push_back(subpass);
-        }
-
-        VkSubpassDependency dependency = {};
-        if (subpass_count_ == 1) {
-            dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-            dependency.dstSubpass = 0;
-            dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-            dependency.srcAccessMask = 0;
-            dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-            dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-            dependencies.push_back(dependency);
-        } else if (subpass_count_ == 2) {
-            {
-                dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-                dependency.dstSubpass = 0;
-                dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-                dependency.srcAccessMask = 0;
-                dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-                dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-                dependencies.push_back(dependency);
-            }
-            {
-                dependency.srcSubpass = 0;
-                dependency.dstSubpass = 1;
-                dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-                dependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-                dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-                dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-                dependencies.push_back(dependency);
-            }
-        }
-
-
-        std::array<VkAttachmentDescription, 3> attachments = {color_attachment, depth_attachment, color_attachment_resolve};
-        VkRenderPassCreateInfo render_pass_Info = {};
-        render_pass_Info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-        render_pass_Info.attachmentCount = static_cast<uint32_t>(attachments.size());
-        render_pass_Info.pAttachments = attachments.data();
-        render_pass_Info.subpassCount = static_cast<uint32_t>(subpasses.size());
-        render_pass_Info.pSubpasses = subpasses.data();
-        render_pass_Info.dependencyCount = static_cast<uint32_t>(dependencies.size());
-        render_pass_Info.pDependencies = dependencies.data();
-
-        if (vkCreateRenderPass(render_engine_.device_, &render_pass_Info, nullptr, &render_pass_) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create render pass");
-        }
-    }
 
     void CreateDescriptorSetLayout() {
         std::vector<VkDescriptorSetLayoutBinding> bindings;

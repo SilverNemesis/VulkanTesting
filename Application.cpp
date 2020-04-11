@@ -62,7 +62,6 @@ public:
         std::vector<const char*> required_extensions(required_extension_count);
         SDL_Vulkan_GetInstanceExtensions(window_, &required_extension_count, required_extensions.data());
         render_engine_.Initialize(window_width_, window_height_, required_extensions, CreateSurface, window_);
-        render_engine_.CreateSwapchain(window_width_, window_height_);
 
 #ifdef MODEL
         {
@@ -161,15 +160,11 @@ public:
         vkDeviceWaitIdle(render_engine_.device_);
 #ifdef MODEL
         render_pipeline_.Destroy();
-#else
-        render_pipeline_texture_.Destroy();
-        render_pipeline_color_.Destroy();
-#endif
-        render_engine_.DestroySwapchain();
-#ifdef MODEL
         render_engine_.DestroyIndexedPrimitive(primitive_);
         render_engine_.DestroyTexture(texture_);
 #else
+        render_pipeline_texture_.Destroy();
+        render_pipeline_color_.Destroy();
         render_engine_.DestroyIndexedPrimitive(texture_primitive_);
         render_engine_.DestroyIndexedPrimitive(color_primitive_);
 #endif
@@ -189,7 +184,11 @@ private:
     int window_height_;
     bool window_minimized_ = false;
     bool window_closed_ = false;
-    RenderEngine render_engine_{};
+#ifdef MODEL
+    RenderEngine render_engine_{1};
+#else
+    RenderEngine render_engine_{2};
+#endif
     RenderPipeline render_pipeline_{render_engine_, Vertex_Texture::getBindingDescription(), Vertex_Texture::getAttributeDescriptions(), 0, 1, 1};
     RenderPipeline render_pipeline_color_{render_engine_, Vertex_Color::getBindingDescription(), Vertex_Color::getAttributeDescriptions(), 0, 2, 0};
     RenderPipeline render_pipeline_texture_{render_engine_, Vertex_Texture::getBindingDescription(), Vertex_Texture::getAttributeDescriptions(), 1, 2, 0};
@@ -356,7 +355,7 @@ private:
 
         VkRenderPassBeginInfo render_pass_info = {};
         render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        render_pass_info.renderPass = render_pipeline_.render_pass_;
+        render_pass_info.renderPass = render_engine_.render_pass_;
         render_pass_info.framebuffer = render_pipeline_.framebuffers_[image_index];
         render_pass_info.renderArea.offset = {0, 0};
         render_pass_info.renderArea.extent = render_engine_.swapchain_extent_;
@@ -390,7 +389,7 @@ private:
 
         VkRenderPassBeginInfo render_pass_info = {};
         render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        render_pass_info.renderPass = render_pipeline_color_.render_pass_;
+        render_pass_info.renderPass = render_engine_.render_pass_;
         render_pass_info.framebuffer = render_pipeline_color_.framebuffers_[image_index];
         render_pass_info.renderArea.offset = {0, 0};
         render_pass_info.renderArea.extent = render_engine_.swapchain_extent_;
