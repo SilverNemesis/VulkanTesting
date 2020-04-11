@@ -8,8 +8,6 @@ class RenderPipeline {
 public:
     VkPipelineLayout pipeline_layout_{};
     VkPipeline graphics_pipeline_{};
-    VkDescriptorPool descriptor_pool_{};
-    VkDescriptorSetLayout descriptor_set_layout_{};
 
     std::vector<VkBuffer> uniform_buffers_{};
     std::vector<VkDeviceMemory> uniform_buffers_memory_{};
@@ -97,6 +95,8 @@ private:
     VkShaderModule vertex_shader_module_{};
     VkShaderModule fragment_shader_module_{};
     size_t uniform_buffer_size_{};
+    VkDescriptorPool descriptor_pool_{};
+    VkDescriptorSetLayout descriptor_set_layout_{};
 
     void CreateDescriptorSetLayout() {
         std::vector<VkDescriptorSetLayoutBinding> bindings;

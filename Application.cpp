@@ -184,22 +184,26 @@ private:
     int window_height_;
     bool window_minimized_ = false;
     bool window_closed_ = false;
+
 #ifdef MODEL
     RenderEngine render_engine_{1};
+    RenderPipeline render_pipeline_{render_engine_, Vertex_Texture::getBindingDescription(), Vertex_Texture::getAttributeDescriptions(), 0, 1, 1};
 #else
     RenderEngine render_engine_{2};
-#endif
-    RenderPipeline render_pipeline_{render_engine_, Vertex_Texture::getBindingDescription(), Vertex_Texture::getAttributeDescriptions(), 0, 1, 1};
     RenderPipeline render_pipeline_color_{render_engine_, Vertex_Color::getBindingDescription(), Vertex_Color::getAttributeDescriptions(), 0, 2, 0};
     RenderPipeline render_pipeline_texture_{render_engine_, Vertex_Texture::getBindingDescription(), Vertex_Texture::getAttributeDescriptions(), 1, 2, 0};
+#endif
+
     struct UniformBufferObject {
         glm::mat4 model;
         glm::mat4 view;
         glm::mat4 proj;
     };
+
     UniformBufferObject uniform_buffer_{};
     UniformBufferObject uniform_buffer_1_{};
     UniformBufferObject uniform_buffer_2_{};
+
     std::vector<VkSemaphore> image_available_semaphores_;
     std::vector<VkSemaphore> render_finished_semaphores_;
     std::vector<VkFence> in_flight_fences_;
