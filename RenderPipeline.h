@@ -11,7 +11,6 @@ public:
     VkDescriptorPool descriptor_pool_{};
     VkDescriptorSetLayout descriptor_set_layout_{};
 
-    std::vector<VkFramebuffer> framebuffers_{};
     std::vector<VkBuffer> uniform_buffers_{};
     std::vector<VkDeviceMemory> uniform_buffers_memory_{};
     std::vector<VkDescriptorSet> descriptor_sets_{};
@@ -42,15 +41,10 @@ public:
         vkDestroyPipeline(render_engine_.device_, graphics_pipeline_, nullptr);
         vkDestroyPipelineLayout(render_engine_.device_, pipeline_layout_, nullptr);
         vkDestroyDescriptorPool(render_engine_.device_, descriptor_pool_, nullptr);
-
-        for (auto framebuffer : framebuffers_) {
-            vkDestroyFramebuffer(render_engine_.device_, framebuffer, nullptr);
-        }
     }
 
     void Rebuild() {
         RenderEngine::Log("rebuilding pipeline");
-        render_engine_.CreateFramebuffers(render_engine_.render_pass_, framebuffers_);
         CreateGraphicsPipeline(render_engine_.swapchain_extent_, render_engine_.render_pass_);
         CreateDescriptorPool();
         CreateDescriptorSets();

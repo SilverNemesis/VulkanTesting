@@ -46,6 +46,7 @@ public:
     std::vector<VkCommandBuffer> command_buffers_{};
     uint32_t subpass_count_ = 1;
     VkRenderPass render_pass_{};
+    std::vector<VkFramebuffer> framebuffers_{};
 
     RenderEngine(uint32_t subpass_count) : subpass_count_(subpass_count) {}
 
@@ -80,10 +81,14 @@ public:
         depth_format_ = FindDepthFormat();
         CreateSwapchain(window_width, window_height);
         CreateRenderPass();
+        CreateFramebuffers(render_pass_, framebuffers_);
         Log("render pass created");
     }
 
     void Destroy() {
+        for (auto framebuffer : framebuffers_) {
+            vkDestroyFramebuffer(device_, framebuffer, nullptr);
+        }
         vkDestroyRenderPass(device_, render_pass_, nullptr);
         DestroySwapchain();
         Log("render pass destroyed");
@@ -103,8 +108,12 @@ public:
 
     void RebuildSwapchain(uint32_t window_width, uint32_t window_height) {
         if (swapchain_extent_.width != window_width || swapchain_extent_.height != window_height) {
+            for (auto framebuffer : framebuffers_) {
+                vkDestroyFramebuffer(device_, framebuffer, nullptr);
+            }
             DestroySwapchain();
             CreateSwapchain(window_width, window_height);
+            CreateFramebuffers(render_pass_, framebuffers_);
         }
     }
 

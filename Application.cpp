@@ -356,7 +356,7 @@ private:
         VkRenderPassBeginInfo render_pass_info = {};
         render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         render_pass_info.renderPass = render_engine_.render_pass_;
-        render_pass_info.framebuffer = render_pipeline_.framebuffers_[image_index];
+        render_pass_info.framebuffer = render_engine_.framebuffers_[image_index];
         render_pass_info.renderArea.offset = {0, 0};
         render_pass_info.renderArea.extent = render_engine_.swapchain_extent_;
 
@@ -390,7 +390,7 @@ private:
         VkRenderPassBeginInfo render_pass_info = {};
         render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         render_pass_info.renderPass = render_engine_.render_pass_;
-        render_pass_info.framebuffer = render_pipeline_color_.framebuffers_[image_index];
+        render_pass_info.framebuffer = render_engine_.framebuffers_[image_index];
         render_pass_info.renderArea.offset = {0, 0};
         render_pass_info.renderArea.extent = render_engine_.swapchain_extent_;
 
