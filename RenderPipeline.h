@@ -17,17 +17,17 @@ public:
     std::vector<VkDeviceMemory> uniform_buffers_memory_{};
     std::vector<VkDescriptorSet> descriptor_sets_{};
 
-    RenderPipeline(RenderDevice& render_device_, VkVertexInputBindingDescription binding_description, std::vector<VkVertexInputAttributeDescription> attribute_descriptions, uint32_t subpass, uint32_t subpass_count) :
-        render_device_(render_device_), binding_description_(binding_description), attribute_descriptions_(attribute_descriptions), subpass_(subpass), subpass_count_(subpass_count) {
+    RenderPipeline(RenderDevice& render_device_, VkVertexInputBindingDescription binding_description, std::vector<VkVertexInputAttributeDescription> attribute_descriptions, uint32_t subpass, uint32_t subpass_count, uint32_t image_sampler_count) :
+        render_device_(render_device_), binding_description_(binding_description), attribute_descriptions_(attribute_descriptions), subpass_(subpass), subpass_count_(subpass_count), image_sampler_count_(image_sampler_count) {
     }
 
-    void Initialize(VkShaderModule& vertex_shader_module, VkShaderModule& fragment_shader_module, size_t uniform_buffer_size, uint32_t image_sampler_count, RenderSwapchain& render_swapchain) {
+    void Initialize(VkShaderModule& vertex_shader_module, VkShaderModule& fragment_shader_module, size_t uniform_buffer_size, RenderSwapchain& render_swapchain) {
         this->vertex_shader_module_ = vertex_shader_module;
         this->fragment_shader_module_ = fragment_shader_module;
         this->uniform_buffer_size_ = uniform_buffer_size;
         CreateUniformBuffers();
         CreateRenderPass();
-        CreateDescriptorSetLayout(image_sampler_count);
+        CreateDescriptorSetLayout();
         Rebuild(render_swapchain);
     }
 
@@ -62,12 +62,51 @@ public:
         CreateDescriptorSets();
     }
 
+    void UpdateDescriptorSet(uint32_t image_index, VkImageView& texture_image_view, VkSampler& texture_sampler) {
+        std::vector<VkWriteDescriptorSet> descriptor_writes = {};
+
+        VkDescriptorBufferInfo buffer_info{};
+        buffer_info.buffer = uniform_buffers_[image_index];
+        buffer_info.offset = 0;
+        buffer_info.range = uniform_buffer_size_;
+
+        VkWriteDescriptorSet descriptor_set{};
+        descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptor_set.dstSet = descriptor_sets_[image_index];
+        descriptor_set.dstBinding = 0;
+        descriptor_set.dstArrayElement = 0;
+        descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptor_set.descriptorCount = 1;
+        descriptor_set.pBufferInfo = &buffer_info;
+        descriptor_writes.push_back(descriptor_set);
+
+        for (uint32_t index = 0; index < image_sampler_count_; index++) {
+            VkDescriptorImageInfo image_info{};
+            image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            image_info.imageView = texture_image_view;
+            image_info.sampler = texture_sampler;
+
+            VkWriteDescriptorSet descriptor_set{};
+            descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptor_set.dstSet = descriptor_sets_[image_index];
+            descriptor_set.dstBinding = 1;
+            descriptor_set.dstArrayElement = 0;
+            descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            descriptor_set.descriptorCount = 1;
+            descriptor_set.pImageInfo = &image_info;
+            descriptor_writes.push_back(descriptor_set);
+        }
+
+        vkUpdateDescriptorSets(render_device_.device_, static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
+    }
+
 private:
     RenderDevice& render_device_;
     VkVertexInputBindingDescription binding_description_;
     std::vector<VkVertexInputAttributeDescription> attribute_descriptions_;
     uint32_t subpass_;
     uint32_t subpass_count_;
+    uint32_t image_sampler_count_;
     VkShaderModule vertex_shader_module_{};
     VkShaderModule fragment_shader_module_{};
     size_t uniform_buffer_size_{};
@@ -174,7 +213,7 @@ private:
         }
     }
 
-    void CreateDescriptorSetLayout(uint32_t image_sampler_count) {
+    void CreateDescriptorSetLayout() {
         std::vector<VkDescriptorSetLayoutBinding> bindings;
 
         VkDescriptorSetLayoutBinding uniform_layout_binding = {};
@@ -185,7 +224,7 @@ private:
         uniform_layout_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         bindings.push_back(uniform_layout_binding);
 
-        for (uint32_t index = 0; index < image_sampler_count; index++) {
+        for (uint32_t index = 0; index < image_sampler_count_; index++) {
             VkDescriptorSetLayoutBinding sampler_layout_binding = {};
             sampler_layout_binding.binding = index + 1;
             sampler_layout_binding.descriptorCount = index + 1;
@@ -207,10 +246,20 @@ private:
 
     void CreateDescriptorPool() {
         std::vector<VkDescriptorPoolSize> pool_sizes{};
-        VkDescriptorPoolSize pool_size{};
-        pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        pool_size.descriptorCount = static_cast<uint32_t>(render_device_.image_count_);
-        pool_sizes.push_back(pool_size);
+
+        {
+            VkDescriptorPoolSize pool_size{};
+            pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            pool_size.descriptorCount = static_cast<uint32_t>(render_device_.image_count_);
+            pool_sizes.push_back(pool_size);
+        }
+
+        for (uint32_t index = 0; index < image_sampler_count_; index++) {
+            VkDescriptorPoolSize pool_size{};
+            pool_size.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            pool_size.descriptorCount = static_cast<uint32_t>(render_device_.image_count_);
+            pool_sizes.push_back(pool_size);
+        }
 
         VkDescriptorPoolCreateInfo pool_info = {};
         pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -235,24 +284,25 @@ private:
         if (vkAllocateDescriptorSets(render_device_.device_, &allocate_info, descriptor_sets_.data()) != VK_SUCCESS) {
             throw std::runtime_error("failed to allocate descriptor sets");
         }
+        std::vector<VkWriteDescriptorSet> descriptor_writes = {};
 
-        for (size_t i = 0; i < render_device_.image_count_; i++) {
-            VkDescriptorBufferInfo buffer_info = {};
-            buffer_info.buffer = uniform_buffers_[i];
-            buffer_info.offset = 0;
-            buffer_info.range = uniform_buffer_size_;
+        if (image_sampler_count_ == 0) {
+            for (uint32_t image_index = 0; image_index < render_device_.image_count_; image_index++) {
+                VkDescriptorBufferInfo buffer_info = {};
+                buffer_info.buffer = uniform_buffers_[image_index];
+                buffer_info.offset = 0;
+                buffer_info.range = uniform_buffer_size_;
 
-            std::vector<VkWriteDescriptorSet> descriptor_writes = {};
-
-            VkWriteDescriptorSet descriptor_set{};
-            descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptor_set.dstSet = descriptor_sets_[i];
-            descriptor_set.dstBinding = 0;
-            descriptor_set.dstArrayElement = 0;
-            descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            descriptor_set.descriptorCount = 1;
-            descriptor_set.pBufferInfo = &buffer_info;
-            descriptor_writes.push_back(descriptor_set);
+                VkWriteDescriptorSet descriptor_set{};
+                descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                descriptor_set.dstSet = descriptor_sets_[image_index];
+                descriptor_set.dstBinding = 0;
+                descriptor_set.dstArrayElement = 0;
+                descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+                descriptor_set.descriptorCount = 1;
+                descriptor_set.pBufferInfo = &buffer_info;
+                descriptor_writes.push_back(descriptor_set);
+            }
 
             vkUpdateDescriptorSets(render_device_.device_, static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
         }
