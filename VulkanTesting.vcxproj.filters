@@ -5,12 +5,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="RenderDevice.h" />
-    <ClInclude Include="RenderSwapchain.h" />
     <ClInclude Include="RenderPipeline.h" />
     <ClInclude Include="Geometry.h" />
     <ClInclude Include="Geometry_Color.h" />
     <ClInclude Include="Geometry_Texture.h" />
-    <ClInclude Include="Texture.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="shaders">

@@ -1,7 +1,8 @@
 #pragma once
 
 #include "RenderDevice.h"
-#include "RenderSwapchain.h"
+
+#include <array>
 
 class RenderPipeline {
 public:
@@ -21,14 +22,14 @@ public:
         render_device_(render_device_), binding_description_(binding_description), attribute_descriptions_(attribute_descriptions), subpass_(subpass), subpass_count_(subpass_count), image_sampler_count_(image_sampler_count) {
     }
 
-    void Initialize(VkShaderModule& vertex_shader_module, VkShaderModule& fragment_shader_module, size_t uniform_buffer_size, RenderSwapchain& render_swapchain) {
+    void Initialize(VkShaderModule& vertex_shader_module, VkShaderModule& fragment_shader_module, size_t uniform_buffer_size) {
         this->vertex_shader_module_ = vertex_shader_module;
         this->fragment_shader_module_ = fragment_shader_module;
         this->uniform_buffer_size_ = uniform_buffer_size;
         CreateUniformBuffers();
         CreateRenderPass();
         CreateDescriptorSetLayout();
-        Rebuild(render_swapchain);
+        Rebuild();
     }
 
     void Destroy() {
@@ -53,11 +54,11 @@ public:
         }
     }
 
-    void Rebuild(RenderSwapchain& render_swapchain) {
+    void Rebuild() {
         RenderDevice::Log("rebuilding pipeline");
-        render_swapchain.CreateFramebuffers(render_pass_, framebuffers_);
+        render_device_.CreateFramebuffers(render_pass_, framebuffers_);
         CreateCommandBuffers();
-        CreateGraphicsPipeline(render_swapchain.swapchain_extent_, render_pass_);
+        CreateGraphicsPipeline(render_device_.swapchain_extent_, render_pass_);
         CreateDescriptorPool();
         CreateDescriptorSets();
     }

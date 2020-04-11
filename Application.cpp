@@ -28,12 +28,10 @@
 #endif
 
 #include "RenderDevice.h"
-#include "RenderSwapchain.h"
 #include "RenderPipeline.h"
 #include "Geometry.h"
 #include "Geometry_Color.h"
 #include "Geometry_Texture.h"
-#include "Texture.h"
 
 #ifdef MODEL
 static const char* MODEL_PATH = "models/chalet.obj";
@@ -64,7 +62,7 @@ public:
         std::vector<const char*> required_extensions(required_extension_count);
         SDL_Vulkan_GetInstanceExtensions(window_, &required_extension_count, required_extensions.data());
         render_device_.Initialize(window_width_, window_height_, required_extensions, CreateSurface, window_);
-        render_swapchain_.Initialize(window_width_, window_height_);
+        render_device_.CreateSwapchain(window_width_, window_height_);
 
 #ifdef MODEL
         {
@@ -73,7 +71,7 @@ public:
             VkShaderModule vertex_shader_module = render_device_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = ReadFile("shaders/texture/frag.spv");
             VkShaderModule fragment_shader_module = render_device_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), render_swapchain_);
+            render_pipeline_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject));
         }
 
         int texture_width, texture_height, texture_channels;
@@ -83,11 +81,9 @@ public:
             throw std::runtime_error("failed to load texture image");
         }
 
-        texture_.CreateImage(pixels, texture_width, texture_height);
+        render_device_.CreateTexture(pixels, texture_width, texture_height, texture_);
 
         stbi_image_free(pixels);
-
-        texture_.CreateTextureSampler(texture_.texture_sampler_, static_cast<float>(texture_.mip_levels_));
 
         for (uint32_t image_index = 0; image_index < render_device_.image_count_; image_index++) {
             render_pipeline_.UpdateDescriptorSet(image_index, texture_.texture_image_view_, texture_.texture_sampler_);
@@ -104,7 +100,7 @@ public:
             VkShaderModule vertex_shader_module = render_device_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = ReadFile("shaders/color/frag.spv");
             VkShaderModule fragment_shader_module = render_device_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_color_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), render_swapchain_);
+            render_pipeline_color_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject));
         }
 
         {
@@ -113,7 +109,7 @@ public:
             VkShaderModule vertex_shader_module = render_device_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = ReadFile("shaders/notexture/frag.spv");
             VkShaderModule fragment_shader_module = render_device_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_texture_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), render_swapchain_);
+            render_pipeline_texture_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject));
         }
 
         std::vector<glm::vec3> vertices{};
@@ -169,11 +165,10 @@ public:
         render_pipeline_texture_.Destroy();
         render_pipeline_color_.Destroy();
 #endif
-        render_swapchain_.Destroy();
+        render_device_.DestroySwapchain();
 #ifdef MODEL
         render_device_.DestroyIndexedPrimitive(primitive_);
-        texture_.DestroyTextureSampler();
-        texture_.DestroyImage();
+        render_device_.DestroyTexture(texture_);
 #else
         render_device_.DestroyIndexedPrimitive(texture_primitive_);
         render_device_.DestroyIndexedPrimitive(color_primitive_);
@@ -195,7 +190,6 @@ private:
     bool window_minimized_ = false;
     bool window_closed_ = false;
     RenderDevice render_device_{};
-    RenderSwapchain render_swapchain_{render_device_};
     RenderPipeline render_pipeline_{render_device_, Vertex_Texture::getBindingDescription(), Vertex_Texture::getAttributeDescriptions(), 0, 1, 1};
     RenderPipeline render_pipeline_color_{render_device_, Vertex_Color::getBindingDescription(), Vertex_Color::getAttributeDescriptions(), 0, 2, 0};
     RenderPipeline render_pipeline_texture_{render_device_, Vertex_Texture::getBindingDescription(), Vertex_Texture::getAttributeDescriptions(), 1, 2, 0};
@@ -214,7 +208,7 @@ private:
     size_t current_frame_ = 0;
 
     IndexedPrimitive primitive_{};
-    Texture texture_{render_device_};
+    TextureSampler texture_;
     IndexedPrimitive color_primitive_{};
     IndexedPrimitive texture_primitive_{};
 
@@ -232,15 +226,15 @@ private:
         render_pipeline_texture_.Reset();
         render_pipeline_color_.Reset();
 #endif
-        render_swapchain_.Rebuild(window_width_, window_height_);
+        render_device_.RebuildSwapchain(window_width_, window_height_);
 #ifdef MODEL
-        render_pipeline_.Rebuild(render_swapchain_);
+        render_pipeline_.Rebuild();
         for (uint32_t image_index = 0; image_index < render_device_.image_count_; image_index++) {
             render_pipeline_.UpdateDescriptorSet(image_index, texture_.texture_image_view_, texture_.texture_sampler_);
         }
 #else
-        render_pipeline_color_.Rebuild(render_swapchain_);
-        render_pipeline_texture_.Rebuild(render_swapchain_);
+        render_pipeline_color_.Rebuild();
+        render_pipeline_texture_.Rebuild();
 #endif
     }
 
@@ -309,7 +303,7 @@ private:
 #ifdef MODEL
         uniform_buffer_.model = glm::scale(glm::rotate(glm::mat4(1.0f), total_time * glm::radians(30.0f), glm::vec3(0.0f, 0.0f, 1.0f)), glm::vec3(1.2f, 1.2f, 1.2f));
         uniform_buffer_.view = glm::lookAt(glm::vec3(2.0f, 2.4f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        uniform_buffer_.proj = glm::perspective(glm::radians(45.0f), render_swapchain_.swapchain_extent_.width / (float)render_swapchain_.swapchain_extent_.height, 0.1f, 10.0f);
+        uniform_buffer_.proj = glm::perspective(glm::radians(45.0f), render_device_.swapchain_extent_.width / (float)render_device_.swapchain_extent_.height, 0.1f, 10.0f);
         uniform_buffer_.proj[1][1] *= -1;
 #else
         float offset_1 = std::sin(total_time);
@@ -322,7 +316,7 @@ private:
         uniform_buffer_1_.model = glm::rotate(uniform_buffer_1_.model, total_time * glm::radians(10.0f), glm::vec3(1.0f, 0.0f, 0.0f));
         uniform_buffer_1_.model = glm::scale(uniform_buffer_1_.model, glm::vec3(1.5f, 1.5f, 1.5f));
         uniform_buffer_1_.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 4.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        uniform_buffer_1_.proj = glm::perspective(glm::radians(45.0f), render_swapchain_.swapchain_extent_.width / (float)render_swapchain_.swapchain_extent_.height, 0.1f, 100.0f);
+        uniform_buffer_1_.proj = glm::perspective(glm::radians(45.0f), render_device_.swapchain_extent_.width / (float)render_device_.swapchain_extent_.height, 0.1f, 100.0f);
         uniform_buffer_1_.proj[1][1] *= -1;
 
         uniform_buffer_2_.model = glm::mat4(1.0f);
@@ -332,7 +326,7 @@ private:
         uniform_buffer_2_.model = glm::rotate(uniform_buffer_2_.model, total_time * glm::radians(10.0f), glm::vec3(1.0f, 0.0f, 0.0f));
         uniform_buffer_2_.model = glm::scale(uniform_buffer_2_.model, glm::vec3(1.5f, 1.5f, 1.5f));
         uniform_buffer_2_.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 4.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        uniform_buffer_2_.proj = glm::perspective(glm::radians(45.0f), render_swapchain_.swapchain_extent_.width / (float)render_swapchain_.swapchain_extent_.height, 0.1f, 100.0f);
+        uniform_buffer_2_.proj = glm::perspective(glm::radians(45.0f), render_device_.swapchain_extent_.width / (float)render_device_.swapchain_extent_.height, 0.1f, 100.0f);
         uniform_buffer_2_.proj[1][1] *= -1;
 #endif
     }
@@ -341,7 +335,7 @@ private:
         vkWaitForFences(render_device_.device_, 1, &in_flight_fences_[current_frame_], VK_TRUE, UINT64_MAX);
 
         uint32_t image_index;
-        VkResult result = vkAcquireNextImageKHR(render_device_.device_, render_swapchain_.swapchain_, UINT64_MAX, image_available_semaphores_[current_frame_], VK_NULL_HANDLE, &image_index);
+        VkResult result = vkAcquireNextImageKHR(render_device_.device_, render_device_.swapchain_, UINT64_MAX, image_available_semaphores_[current_frame_], VK_NULL_HANDLE, &image_index);
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR) {
             RecreateSwapchain();
@@ -365,7 +359,7 @@ private:
         render_pass_info.renderPass = render_pipeline_.render_pass_;
         render_pass_info.framebuffer = render_pipeline_.framebuffers_[image_index];
         render_pass_info.renderArea.offset = {0, 0};
-        render_pass_info.renderArea.extent = render_swapchain_.swapchain_extent_;
+        render_pass_info.renderArea.extent = render_device_.swapchain_extent_;
 
         std::array<VkClearValue, 2> clear_values = {};
         clear_values[0].color = {0.0f, 0.0f, 0.0f, 1.0f};
@@ -399,7 +393,7 @@ private:
         render_pass_info.renderPass = render_pipeline_color_.render_pass_;
         render_pass_info.framebuffer = render_pipeline_color_.framebuffers_[image_index];
         render_pass_info.renderArea.offset = {0, 0};
-        render_pass_info.renderArea.extent = render_swapchain_.swapchain_extent_;
+        render_pass_info.renderArea.extent = render_device_.swapchain_extent_;
 
         std::array<VkClearValue, 2> clear_values = {};
         clear_values[0].color = {0.0f, 0.0f, 0.0f, 1.0f};
@@ -489,7 +483,7 @@ private:
         present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
         present_info.waitSemaphoreCount = 1;
         present_info.pWaitSemaphores = signal_semaphores;
-        VkSwapchainKHR swap_chains[] = {render_swapchain_.swapchain_};
+        VkSwapchainKHR swap_chains[] = {render_device_.swapchain_};
         present_info.swapchainCount = 1;
         present_info.pSwapchains = swap_chains;
         present_info.pImageIndices = &image_index;
@@ -548,7 +542,7 @@ private:
         std::ifstream file(file_name, std::ios::ate | std::ios::binary);
 
         if (!file.is_open()) {
-            throw std::runtime_error(std::string{"failed to open file "} + file_name);
+            throw std::runtime_error(std::string{"failed to open file "}+file_name);
         }
 
         size_t file_size = (size_t)file.tellg();

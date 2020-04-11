@@ -154,8 +154,6 @@
     <ClInclude Include="Geometry_Texture.h" />
     <ClInclude Include="RenderDevice.h" />
     <ClInclude Include="RenderPipeline.h" />
-    <ClInclude Include="RenderSwapchain.h" />
-    <ClInclude Include="Texture.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\color\shader.frag" />
