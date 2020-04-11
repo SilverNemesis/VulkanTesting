@@ -23,6 +23,7 @@
 #include "RenderPipeline.h"
 #include "Geometry.h"
 #include "Geometry_Color.h"
+#include "Geometry_Texture.h"
 
 static const int MAX_FRAMES_IN_FLIGHT = 2;
 
@@ -49,11 +50,24 @@ public:
         SDL_Vulkan_GetInstanceExtensions(window_, &required_extension_count, required_extensions.data());
         render_device_.Initialize(window_width_, window_height_, required_extensions, CreateSurface, window_);
         render_swapchain_.Initialize(window_width_, window_height_);
-        std::vector<unsigned char> byte_code = ReadFile("shaders/color/vert.spv");
-        VkShaderModule vertex_shader_module = render_device_.CreateShaderModule(byte_code.data(), byte_code.size());
-        byte_code = ReadFile("shaders/color/frag.spv");
-        VkShaderModule fragment_shader_module = render_device_.CreateShaderModule(byte_code.data(), byte_code.size());
-        render_pipeline_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 0, render_swapchain_);
+
+        {
+            std::vector<unsigned char> byte_code{};
+            byte_code = ReadFile("shaders/color/vert.spv");
+            VkShaderModule vertex_shader_module = render_device_.CreateShaderModule(byte_code.data(), byte_code.size());
+            byte_code = ReadFile("shaders/color/frag.spv");
+            VkShaderModule fragment_shader_module = render_device_.CreateShaderModule(byte_code.data(), byte_code.size());
+            render_pipeline_color_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 0, render_swapchain_);
+        }
+
+        {
+            std::vector<unsigned char> byte_code{};
+            byte_code = ReadFile("shaders/notexture/vert.spv");
+            VkShaderModule vertex_shader_module = render_device_.CreateShaderModule(byte_code.data(), byte_code.size());
+            byte_code = ReadFile("shaders/notexture/frag.spv");
+            VkShaderModule fragment_shader_module = render_device_.CreateShaderModule(byte_code.data(), byte_code.size());
+            render_pipeline_texture_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 0, render_swapchain_);
+        }
 
         std::vector<glm::vec3> vertices{};
         std::vector<std::vector<uint32_t>> faces{};
@@ -65,12 +79,24 @@ public:
             {0.0, 1.0, 0.0},
             {0.0, 0.0, 1.0},
             {1.0, 1.0, 0.0},
-            {1.0, 0.0, 1.0},
+            {1.0, 0.0, 1.0}
         };
 
-        Geometry_Color geometry{};
-        geometry.AddFaces(vertices, faces, colors);
-        render_device_.CreateIndexedPrimitive<Vertex_Color, uint32_t>(geometry.vertices, geometry.indices, primitive_);
+        Geometry_Color geometry_color{};
+        geometry_color.AddFaces(vertices, faces, colors);
+        render_device_.CreateIndexedPrimitive<Vertex_Color, uint32_t>(geometry_color.vertices, geometry_color.indices, color_primitive_);
+
+        std::vector<glm::vec2> texture_coordinates = {
+            {0, 0},
+            {1, 0},
+            {1, 1},
+            {0, 1}
+        };
+
+        Geometry_Texture geometry_texture{};
+        geometry_texture.AddFaces(vertices, faces, texture_coordinates);
+        render_device_.CreateIndexedPrimitive<Vertex_Texture, uint32_t>(geometry_texture.vertices, geometry_texture.indices, texture_primitive_);
+
         CreateSyncObjects();
     }
 
@@ -89,13 +115,15 @@ public:
     void Shutdown() {
         SDL_Log("application shutdown");
         vkDeviceWaitIdle(render_device_.device_);
-        render_pipeline_.Destroy();
+        render_pipeline_texture_.Destroy();
+        render_pipeline_color_.Destroy();
         render_swapchain_.Destroy();
-        render_device_.DestroyIndexedPrimitive(primitive_);
+        render_device_.DestroyIndexedPrimitive(texture_primitive_);
+        render_device_.DestroyIndexedPrimitive(color_primitive_);
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            vkDestroySemaphore(render_device_.device_, renderFinishedSemaphores[i], nullptr);
-            vkDestroySemaphore(render_device_.device_, imageAvailableSemaphores[i], nullptr);
-            vkDestroyFence(render_device_.device_, inFlightFences[i], nullptr);
+            vkDestroySemaphore(render_device_.device_, render_finished_semaphores_[i], nullptr);
+            vkDestroySemaphore(render_device_.device_, image_available_semaphores_[i], nullptr);
+            vkDestroyFence(render_device_.device_, in_flight_fences_[i], nullptr);
         }
         render_device_.Destroy();
         SDL_DestroyWindow(window_);
@@ -110,19 +138,23 @@ private:
     bool window_closed_ = false;
     RenderDevice render_device_{};
     RenderSwapchain render_swapchain_{render_device_};
-    RenderPipeline render_pipeline_{render_device_, Vertex_Color::getBindingDescription(), Vertex_Color::getAttributeDescriptions()};
+    RenderPipeline render_pipeline_color_{render_device_, Vertex_Color::getBindingDescription(), Vertex_Color::getAttributeDescriptions(), 0, 2};
+    RenderPipeline render_pipeline_texture_{render_device_, Vertex_Texture::getBindingDescription(), Vertex_Texture::getAttributeDescriptions(), 1, 2};
     struct UniformBufferObject {
         glm::mat4 model;
         glm::mat4 view;
         glm::mat4 proj;
     };
-    std::vector<VkSemaphore> imageAvailableSemaphores;
-    std::vector<VkSemaphore> renderFinishedSemaphores;
-    std::vector<VkFence> inFlightFences;
-    std::vector<VkFence> imagesInFlight;
-    size_t currentFrame = 0;
+    UniformBufferObject uniform_buffer_1_{};
+    UniformBufferObject uniform_buffer_2_{};
+    std::vector<VkSemaphore> image_available_semaphores_;
+    std::vector<VkSemaphore> render_finished_semaphores_;
+    std::vector<VkFence> in_flight_fences_;
+    std::vector<VkFence> images_in_flight_;
+    size_t current_frame_ = 0;
 
-    IndexedPrimitive primitive_{};
+    IndexedPrimitive color_primitive_{};
+    IndexedPrimitive texture_primitive_{};
 
     static void CreateSurface(void* window, VkInstance& instance, VkSurfaceKHR& surface) {
         if (!SDL_Vulkan_CreateSurface((SDL_Window*)window, instance, &surface)) {
@@ -132,53 +164,33 @@ private:
 
     void RecreateSwapchain() {
         vkDeviceWaitIdle(render_device_.device_);
-        render_pipeline_.Reset();
+        render_pipeline_texture_.Reset();
+        render_pipeline_color_.Reset();
         render_swapchain_.Rebuild(window_width_, window_height_);
-        render_pipeline_.Rebuild(render_swapchain_);
+        render_pipeline_color_.Rebuild(render_swapchain_);
+        render_pipeline_texture_.Rebuild(render_swapchain_);
     }
 
     void CreateSyncObjects() {
-        imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-        renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-        inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
-        imagesInFlight.resize(render_device_.image_count_, VK_NULL_HANDLE);
+        image_available_semaphores_.resize(MAX_FRAMES_IN_FLIGHT);
+        render_finished_semaphores_.resize(MAX_FRAMES_IN_FLIGHT);
+        in_flight_fences_.resize(MAX_FRAMES_IN_FLIGHT);
+        images_in_flight_.resize(render_device_.image_count_, VK_NULL_HANDLE);
 
-        VkSemaphoreCreateInfo semaphoreInfo = {};
-        semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        VkSemaphoreCreateInfo semaphore_info = {};
+        semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-        VkFenceCreateInfo fenceInfo = {};
-        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+        VkFenceCreateInfo fence_info = {};
+        fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            if (vkCreateSemaphore(render_device_.device_, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
-                vkCreateSemaphore(render_device_.device_, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
-                vkCreateFence(render_device_.device_, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
+            if (vkCreateSemaphore(render_device_.device_, &semaphore_info, nullptr, &image_available_semaphores_[i]) != VK_SUCCESS ||
+                vkCreateSemaphore(render_device_.device_, &semaphore_info, nullptr, &render_finished_semaphores_[i]) != VK_SUCCESS ||
+                vkCreateFence(render_device_.device_, &fence_info, nullptr, &in_flight_fences_[i]) != VK_SUCCESS) {
                 throw std::runtime_error("failed to create synchronization objects for a frame");
             }
         }
-    }
-
-    void UpdateUniformBuffer(uint32_t currentImage) {
-        static auto startTime = std::chrono::high_resolution_clock::now();
-
-        auto currentTime = std::chrono::high_resolution_clock::now();
-        float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-
-        UniformBufferObject ubo = {};
-        ubo.model = glm::mat4(1.0f);
-        ubo.model = glm::rotate(ubo.model, time * glm::radians(60.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.model = glm::rotate(ubo.model, time * glm::radians(30.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        ubo.model = glm::rotate(ubo.model, time * glm::radians(10.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-        ubo.model = glm::scale(ubo.model, glm::vec3(2.4f, 2.4f, 2.4f));
-        ubo.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 4.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        ubo.proj = glm::perspective(glm::radians(45.0f), render_swapchain_.swapchain_extent_.width / (float)render_swapchain_.swapchain_extent_.height, 0.1f, 100.0f);
-        ubo.proj[1][1] *= -1;
-
-        void* data;
-        vkMapMemory(render_device_.device_, render_pipeline_.uniform_buffers_memory_[currentImage], 0, sizeof(ubo), 0, &data);
-        memcpy(data, &ubo, sizeof(ubo));
-        vkUnmapMemory(render_device_.device_, render_pipeline_.uniform_buffers_memory_[currentImage]);
     }
 
     void ProcessInput() {
@@ -217,13 +229,39 @@ private:
     }
 
     void Update() {
+        static auto start_time = std::chrono::high_resolution_clock::now();
+        auto current_time = std::chrono::high_resolution_clock::now();
+        float total_time = std::chrono::duration<float, std::chrono::seconds::period>(current_time - start_time).count();
+
+        float offset_1 = std::sin(total_time);
+        float offset_2 = std::cos(total_time);
+
+        uniform_buffer_1_.model = glm::mat4(1.0f);
+        uniform_buffer_1_.model = glm::translate(uniform_buffer_1_.model, glm::vec3(-1.0f, 0.0f, offset_1));
+        uniform_buffer_1_.model = glm::rotate(uniform_buffer_1_.model, total_time * glm::radians(60.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        uniform_buffer_1_.model = glm::rotate(uniform_buffer_1_.model, total_time * glm::radians(30.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        uniform_buffer_1_.model = glm::rotate(uniform_buffer_1_.model, total_time * glm::radians(10.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        uniform_buffer_1_.model = glm::scale(uniform_buffer_1_.model, glm::vec3(1.5f, 1.5f, 1.5f));
+        uniform_buffer_1_.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 4.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        uniform_buffer_1_.proj = glm::perspective(glm::radians(45.0f), render_swapchain_.swapchain_extent_.width / (float)render_swapchain_.swapchain_extent_.height, 0.1f, 100.0f);
+        uniform_buffer_1_.proj[1][1] *= -1;
+
+        uniform_buffer_2_.model = glm::mat4(1.0f);
+        uniform_buffer_2_.model = glm::translate(uniform_buffer_2_.model, glm::vec3(1.0f, 0.0f, offset_2));
+        uniform_buffer_2_.model = glm::rotate(uniform_buffer_2_.model, total_time * glm::radians(60.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        uniform_buffer_2_.model = glm::rotate(uniform_buffer_2_.model, total_time * glm::radians(30.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        uniform_buffer_2_.model = glm::rotate(uniform_buffer_2_.model, total_time * glm::radians(10.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        uniform_buffer_2_.model = glm::scale(uniform_buffer_2_.model, glm::vec3(1.5f, 1.5f, 1.5f));
+        uniform_buffer_2_.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 4.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        uniform_buffer_2_.proj = glm::perspective(glm::radians(45.0f), render_swapchain_.swapchain_extent_.width / (float)render_swapchain_.swapchain_extent_.height, 0.1f, 100.0f);
+        uniform_buffer_2_.proj[1][1] *= -1;
     }
 
     void Render() {
-        vkWaitForFences(render_device_.device_, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+        vkWaitForFences(render_device_.device_, 1, &in_flight_fences_[current_frame_], VK_TRUE, UINT64_MAX);
 
-        uint32_t imageIndex;
-        VkResult result = vkAcquireNextImageKHR(render_device_.device_, render_swapchain_.swapchain_, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+        uint32_t image_index;
+        VkResult result = vkAcquireNextImageKHR(render_device_.device_, render_swapchain_.swapchain_, UINT64_MAX, image_available_semaphores_[current_frame_], VK_NULL_HANDLE, &image_index);
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR) {
             RecreateSwapchain();
@@ -232,86 +270,105 @@ private:
             throw std::runtime_error("failed to acquire swap chain image");
         }
 
-        VkCommandBufferBeginInfo beginInfo = {};
-        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        //auto beg_time = std::chrono::high_resolution_clock::now();
 
-        if (vkBeginCommandBuffer(render_pipeline_.command_buffers_[imageIndex], &beginInfo) != VK_SUCCESS) {
+        VkCommandBufferBeginInfo begin_info = {};
+        begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+        if (vkBeginCommandBuffer(render_pipeline_color_.command_buffers_[image_index], &begin_info) != VK_SUCCESS) {
             throw std::runtime_error("failed to begin recording command buffer");
         }
 
-        VkRenderPassBeginInfo renderPassInfo = {};
-        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        renderPassInfo.renderPass = render_pipeline_.render_pass_;
-        renderPassInfo.framebuffer = render_pipeline_.framebuffers_[imageIndex];
-        renderPassInfo.renderArea.offset = {0, 0};
-        renderPassInfo.renderArea.extent = render_swapchain_.swapchain_extent_;
+        VkRenderPassBeginInfo render_pass_info = {};
+        render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        render_pass_info.renderPass = render_pipeline_color_.render_pass_;
+        render_pass_info.framebuffer = render_pipeline_color_.framebuffers_[image_index];
+        render_pass_info.renderArea.offset = {0, 0};
+        render_pass_info.renderArea.extent = render_swapchain_.swapchain_extent_;
 
-        std::array<VkClearValue, 2> clearValues = {};
-        clearValues[0].color = {0.0f, 0.0f, 0.0f, 1.0f};
-        clearValues[1].depthStencil = {1.0f, 0};
+        std::array<VkClearValue, 2> clear_values = {};
+        clear_values[0].color = {0.0f, 0.0f, 0.0f, 1.0f};
+        clear_values[1].depthStencil = {1.0f, 0};
 
-        renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-        renderPassInfo.pClearValues = clearValues.data();
+        render_pass_info.clearValueCount = static_cast<uint32_t>(clear_values.size());
+        render_pass_info.pClearValues = clear_values.data();
 
-        vkCmdBeginRenderPass(render_pipeline_.command_buffers_[imageIndex], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBeginRenderPass(render_pipeline_color_.command_buffers_[image_index], &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
 
-        vkCmdBindPipeline(render_pipeline_.command_buffers_[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_.graphics_pipeline_);
+        vkCmdBindPipeline(render_pipeline_color_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_color_.graphics_pipeline_);
+        VkBuffer vertex_buffers_1[] = {color_primitive_.vertex_buffer_};
+        VkDeviceSize offsets_1[] = {0};
+        vkCmdBindVertexBuffers(render_pipeline_color_.command_buffers_[image_index], 0, 1, vertex_buffers_1, offsets_1);
+        vkCmdBindIndexBuffer(render_pipeline_color_.command_buffers_[image_index], color_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(render_pipeline_color_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_color_.pipeline_layout_, 0, 1, &render_pipeline_color_.descriptor_sets_[image_index], 0, nullptr);
+        vkCmdDrawIndexed(render_pipeline_color_.command_buffers_[image_index], color_primitive_.index_count_, 1, 0, 0, 0);
 
-        VkBuffer vertexBuffers[] = {primitive_.vertex_buffer_};
-        VkDeviceSize offsets[] = {0};
-        vkCmdBindVertexBuffers(render_pipeline_.command_buffers_[imageIndex], 0, 1, vertexBuffers, offsets);
+        vkCmdNextSubpass(render_pipeline_color_.command_buffers_[image_index], VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(render_pipeline_color_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_texture_.graphics_pipeline_);
+        VkBuffer vertex_buffers_2[] = {texture_primitive_.vertex_buffer_};
+        VkDeviceSize offsets_2[] = {0};
+        vkCmdBindVertexBuffers(render_pipeline_color_.command_buffers_[image_index], 0, 1, vertex_buffers_2, offsets_2);
+        vkCmdBindIndexBuffer(render_pipeline_color_.command_buffers_[image_index], texture_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(render_pipeline_color_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_texture_.pipeline_layout_, 0, 1, &render_pipeline_texture_.descriptor_sets_[image_index], 0, nullptr);
+        vkCmdDrawIndexed(render_pipeline_color_.command_buffers_[image_index], texture_primitive_.index_count_, 1, 0, 0, 0);
 
-        vkCmdBindIndexBuffer(render_pipeline_.command_buffers_[imageIndex], primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdEndRenderPass(render_pipeline_color_.command_buffers_[image_index]);
 
-        vkCmdBindDescriptorSets(render_pipeline_.command_buffers_[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_.pipeline_layout_, 0, 1, &render_pipeline_.descriptor_sets_[imageIndex], 0, nullptr);
-
-        vkCmdDrawIndexed(render_pipeline_.command_buffers_[imageIndex], primitive_.index_count_, 1, 0, 0, 0);
-
-        vkCmdEndRenderPass(render_pipeline_.command_buffers_[imageIndex]);
-
-        if (vkEndCommandBuffer(render_pipeline_.command_buffers_[imageIndex]) != VK_SUCCESS) {
+        if (vkEndCommandBuffer(render_pipeline_color_.command_buffers_[image_index]) != VK_SUCCESS) {
             throw std::runtime_error("failed to record command buffer");
         }
 
-        UpdateUniformBuffer(imageIndex);
+        void* data;
 
-        if (imagesInFlight[imageIndex] != VK_NULL_HANDLE) {
-            vkWaitForFences(render_device_.device_, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
+        vkMapMemory(render_device_.device_, render_pipeline_color_.uniform_buffers_memory_[image_index], 0, sizeof(uniform_buffer_1_), 0, &data);
+        memcpy(data, &uniform_buffer_1_, sizeof(uniform_buffer_1_));
+        vkUnmapMemory(render_device_.device_, render_pipeline_color_.uniform_buffers_memory_[image_index]);
+
+        vkMapMemory(render_device_.device_, render_pipeline_texture_.uniform_buffers_memory_[image_index], 0, sizeof(uniform_buffer_2_), 0, &data);
+        memcpy(data, &uniform_buffer_2_, sizeof(uniform_buffer_2_));
+        vkUnmapMemory(render_device_.device_, render_pipeline_texture_.uniform_buffers_memory_[image_index]);
+
+        //auto end_time = std::chrono::high_resolution_clock::now();
+        //auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - beg_time).count();
+        //RenderDevice::Log("%lld", duration);
+
+        if (images_in_flight_[image_index] != VK_NULL_HANDLE) {
+            vkWaitForFences(render_device_.device_, 1, &images_in_flight_[image_index], VK_TRUE, UINT64_MAX);
         }
-        imagesInFlight[imageIndex] = inFlightFences[currentFrame];
+        images_in_flight_[image_index] = in_flight_fences_[current_frame_];
 
-        VkSubmitInfo submitInfo = {};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        VkSubmitInfo submit_info = {};
+        submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-        VkSemaphore waitSemaphores[] = {imageAvailableSemaphores[currentFrame]};
-        VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-        submitInfo.waitSemaphoreCount = 1;
-        submitInfo.pWaitSemaphores = waitSemaphores;
-        submitInfo.pWaitDstStageMask = waitStages;
+        VkSemaphore wait_semaphores[] = {image_available_semaphores_[current_frame_]};
+        VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+        submit_info.waitSemaphoreCount = 1;
+        submit_info.pWaitSemaphores = wait_semaphores;
+        submit_info.pWaitDstStageMask = wait_stages;
 
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &render_pipeline_.command_buffers_[imageIndex];
+        submit_info.commandBufferCount = 1;
+        submit_info.pCommandBuffers = &render_pipeline_color_.command_buffers_[image_index];
 
-        VkSemaphore signalSemaphores[] = {renderFinishedSemaphores[currentFrame]};
-        submitInfo.signalSemaphoreCount = 1;
-        submitInfo.pSignalSemaphores = signalSemaphores;
+        VkSemaphore signal_semaphores[] = {render_finished_semaphores_[current_frame_]};
+        submit_info.signalSemaphoreCount = 1;
+        submit_info.pSignalSemaphores = signal_semaphores;
 
-        vkResetFences(render_device_.device_, 1, &inFlightFences[currentFrame]);
+        vkResetFences(render_device_.device_, 1, &in_flight_fences_[current_frame_]);
 
-        if (vkQueueSubmit(render_device_.graphics_queue_, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
+        if (vkQueueSubmit(render_device_.graphics_queue_, 1, &submit_info, in_flight_fences_[current_frame_]) != VK_SUCCESS) {
             throw std::runtime_error("failed to submit draw command buffer");
         }
 
-        VkPresentInfoKHR presentInfo = {};
-        presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-        presentInfo.waitSemaphoreCount = 1;
-        presentInfo.pWaitSemaphores = signalSemaphores;
+        VkPresentInfoKHR present_info = {};
+        present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+        present_info.waitSemaphoreCount = 1;
+        present_info.pWaitSemaphores = signal_semaphores;
         VkSwapchainKHR swapChains[] = {render_swapchain_.swapchain_};
-        presentInfo.swapchainCount = 1;
-        presentInfo.pSwapchains = swapChains;
-        presentInfo.pImageIndices = &imageIndex;
+        present_info.swapchainCount = 1;
+        present_info.pSwapchains = swapChains;
+        present_info.pImageIndices = &image_index;
 
-        result = vkQueuePresentKHR(render_device_.present_queue_, &presentInfo);
+        result = vkQueuePresentKHR(render_device_.present_queue_, &present_info);
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
             RecreateSwapchain();
@@ -319,7 +376,7 @@ private:
             throw std::runtime_error("failed to present swap chain image");
         }
 
-        currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+        current_frame_ = (current_frame_ + 1) % MAX_FRAMES_IN_FLIGHT;
     }
 
     std::vector<unsigned char> ReadFile(const std::string& file_name) {

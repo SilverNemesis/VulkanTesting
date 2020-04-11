@@ -17,8 +17,8 @@ public:
     std::vector<VkDeviceMemory> uniform_buffers_memory_{};
     std::vector<VkDescriptorSet> descriptor_sets_{};
 
-    RenderPipeline(RenderDevice& render_device_, VkVertexInputBindingDescription binding_description, std::vector<VkVertexInputAttributeDescription> attribute_descriptions) :
-        render_device_(render_device_), binding_description_(binding_description), attribute_descriptions_(attribute_descriptions) {
+    RenderPipeline(RenderDevice& render_device_, VkVertexInputBindingDescription binding_description, std::vector<VkVertexInputAttributeDescription> attribute_descriptions, uint32_t subpass, uint32_t subpass_count) :
+        render_device_(render_device_), binding_description_(binding_description), attribute_descriptions_(attribute_descriptions), subpass_(subpass), subpass_count_(subpass_count) {
     }
 
     void Initialize(VkShaderModule& vertex_shader_module, VkShaderModule& fragment_shader_module, size_t uniform_buffer_size, uint32_t image_sampler_count, RenderSwapchain& render_swapchain) {
@@ -66,6 +66,8 @@ private:
     RenderDevice& render_device_;
     VkVertexInputBindingDescription binding_description_;
     std::vector<VkVertexInputAttributeDescription> attribute_descriptions_;
+    uint32_t subpass_;
+    uint32_t subpass_count_;
     VkShaderModule vertex_shader_module_{};
     VkShaderModule fragment_shader_module_{};
     size_t uniform_buffer_size_{};
@@ -113,30 +115,59 @@ private:
         color_attachment_resolve_reference.attachment = 2;
         color_attachment_resolve_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-        VkSubpassDescription subpass = {};
-        subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-        subpass.colorAttachmentCount = 1;
-        subpass.pColorAttachments = &color_attachment_reference;
-        subpass.pDepthStencilAttachment = &depth_attachment_reference;
-        subpass.pResolveAttachments = &color_attachment_resolve_reference;
+        std::vector<VkSubpassDescription> subpasses = {};
+        std::vector<VkSubpassDependency> dependencies = {};
+
+        for (uint32_t i = 0; i < subpass_count_; i++) {
+            VkSubpassDescription subpass = {};
+            subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+            subpass.colorAttachmentCount = 1;
+            subpass.pColorAttachments = &color_attachment_reference;
+            subpass.pDepthStencilAttachment = &depth_attachment_reference;
+            subpass.pResolveAttachments = &color_attachment_resolve_reference;
+            subpasses.push_back(subpass);
+        }
 
         VkSubpassDependency dependency = {};
-        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-        dependency.dstSubpass = 0;
-        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dependency.srcAccessMask = 0;
-        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        if (subpass_count_ == 1) {
+            dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+            dependency.dstSubpass = 0;
+            dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            dependency.srcAccessMask = 0;
+            dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            dependencies.push_back(dependency);
+        } else if (subpass_count_ == 2) {
+            {
+                dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+                dependency.dstSubpass = 0;
+                dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+                dependency.srcAccessMask = 0;
+                dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+                dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+                dependencies.push_back(dependency);
+            }
+            {
+                dependency.srcSubpass = 0;
+                dependency.dstSubpass = 1;
+                dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+                dependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+                dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+                dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+                dependencies.push_back(dependency);
+            }
+        }
+
 
         std::array<VkAttachmentDescription, 3> attachments = {color_attachment, depth_attachment, color_attachment_resolve};
         VkRenderPassCreateInfo render_pass_Info = {};
         render_pass_Info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
         render_pass_Info.attachmentCount = static_cast<uint32_t>(attachments.size());
         render_pass_Info.pAttachments = attachments.data();
-        render_pass_Info.subpassCount = 1;
-        render_pass_Info.pSubpasses = &subpass;
-        render_pass_Info.dependencyCount = 1;
-        render_pass_Info.pDependencies = &dependency;
+        render_pass_Info.subpassCount = static_cast<uint32_t>(subpasses.size());
+        render_pass_Info.pSubpasses = subpasses.data();
+        render_pass_Info.dependencyCount = static_cast<uint32_t>(dependencies.size());
+        render_pass_Info.pDependencies = dependencies.data();
 
         if (vkCreateRenderPass(render_device_.device_, &render_pass_Info, nullptr, &render_pass_) != VK_SUCCESS) {
             throw std::runtime_error("failed to create render pass");
@@ -348,7 +379,7 @@ private:
         pipeline_info.pColorBlendState = &color_blending;
         pipeline_info.layout = pipeline_layout_;
         pipeline_info.renderPass = render_pass;
-        pipeline_info.subpass = 0;
+        pipeline_info.subpass = subpass_;
         pipeline_info.basePipelineHandle = VK_NULL_HANDLE;
 
         if (vkCreateGraphicsPipelines(render_device_.device_, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &graphics_pipeline_) != VK_SUCCESS) {
