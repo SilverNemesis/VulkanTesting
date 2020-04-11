@@ -13,7 +13,6 @@ public:
     VkDescriptorSetLayout descriptor_set_layout_{};
 
     std::vector<VkFramebuffer> framebuffers_{};
-    std::vector<VkCommandBuffer> command_buffers_{};
     std::vector<VkBuffer> uniform_buffers_{};
     std::vector<VkDeviceMemory> uniform_buffers_memory_{};
     std::vector<VkDescriptorSet> descriptor_sets_{};
@@ -47,8 +46,6 @@ public:
         vkDestroyPipelineLayout(render_engine_.device_, pipeline_layout_, nullptr);
         vkDestroyDescriptorPool(render_engine_.device_, descriptor_pool_, nullptr);
 
-        vkFreeCommandBuffers(render_engine_.device_, render_engine_.command_pool_, static_cast<uint32_t>(command_buffers_.size()), command_buffers_.data());
-
         for (auto framebuffer : framebuffers_) {
             vkDestroyFramebuffer(render_engine_.device_, framebuffer, nullptr);
         }
@@ -57,7 +54,6 @@ public:
     void Rebuild() {
         RenderEngine::Log("rebuilding pipeline");
         render_engine_.CreateFramebuffers(render_pass_, framebuffers_);
-        CreateCommandBuffers();
         CreateGraphicsPipeline(render_engine_.swapchain_extent_, render_pass_);
         CreateDescriptorPool();
         CreateDescriptorSets();
@@ -306,20 +302,6 @@ private:
             }
 
             vkUpdateDescriptorSets(render_engine_.device_, static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
-        }
-    }
-
-    void CreateCommandBuffers() {
-        command_buffers_.resize(framebuffers_.size());
-
-        VkCommandBufferAllocateInfo allocate_info = {};
-        allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        allocate_info.commandPool = render_engine_.command_pool_;
-        allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocate_info.commandBufferCount = (uint32_t)command_buffers_.size();
-
-        if (vkAllocateCommandBuffers(render_engine_.device_, &allocate_info, command_buffers_.data()) != VK_SUCCESS) {
-            throw std::runtime_error("failed to allocate command buffers");
         }
     }
 

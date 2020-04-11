@@ -43,6 +43,7 @@ public:
     VkPresentModeKHR present_mode_ = VK_PRESENT_MODE_IMMEDIATE_KHR;
     VkSwapchainKHR swapchain_{};
     VkExtent2D swapchain_extent_{};
+    std::vector<VkCommandBuffer> command_buffers_{};
 
     void Initialize(uint32_t window_width, uint32_t window_height, std::vector<const char*>& required_extensions, void (*CreateSurface)(void* window, VkInstance& instance, VkSurfaceKHR& surface), void* window) {
 #ifdef _DEBUG
@@ -77,7 +78,7 @@ public:
 
     void Destroy() {
         vkDestroyCommandPool(device_, command_pool_, nullptr);
-        Log("command pool created");
+        Log("command pool destroyed");
         vkDestroyDevice(device_, nullptr);
         Log("logical device destroyed");
         vkDestroySurfaceKHR(instance_, surface_, nullptr);
@@ -129,9 +130,9 @@ public:
 
         swapchain_extent_ = extent;
 
-        swapchain_image_views_.resize(swapchain_images_.size());
+        swapchain_image_views_.resize(image_count_);
 
-        for (size_t i = 0; i < swapchain_images_.size(); i++) {
+        for (size_t i = 0; i < image_count_; i++) {
             swapchain_image_views_[i] = CreateImageView(swapchain_images_[i], surface_format_.format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
         }
 
@@ -143,10 +144,14 @@ public:
         CreateImage(swapchain_extent_.width, swapchain_extent_.height, 1, msaa_samples_, depth_format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depth_image_, depth_image_memory_);
         depth_image_view_ = CreateImageView(depth_image_, depth_format, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
 
+        CreateCommandBuffers();
+
         RenderEngine::Log("swapchain created x=%d, y=%d", window_width, window_height);
     }
 
     void DestroySwapchain() {
+        vkFreeCommandBuffers(device_, command_pool_, static_cast<uint32_t>(command_buffers_.size()), command_buffers_.data());
+
         vkDestroyImageView(device_, depth_image_view_, nullptr);
         vkDestroyImage(device_, depth_image_, nullptr);
         vkFreeMemory(device_, depth_image_memory_, nullptr);
@@ -780,6 +785,20 @@ private:
         vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
 
         EndCommands(commandBuffer);
+    }
+
+    void CreateCommandBuffers() {
+        command_buffers_.resize(image_count_);
+
+        VkCommandBufferAllocateInfo allocate_info = {};
+        allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocate_info.commandPool = command_pool_;
+        allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocate_info.commandBufferCount = (uint32_t)command_buffers_.size();
+
+        if (vkAllocateCommandBuffers(device_, &allocate_info, command_buffers_.data()) != VK_SUCCESS) {
+            throw std::runtime_error("failed to allocate command buffers");
+        }
     }
 
     void GenerateMipmaps(VkImage image, VkFormat image_format, int32_t texture_width, int32_t texture_height, uint32_t mip_levels) {

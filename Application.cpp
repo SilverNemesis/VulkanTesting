@@ -350,7 +350,7 @@ private:
         begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
 #ifdef MODEL
-        if (vkBeginCommandBuffer(render_pipeline_.command_buffers_[image_index], &begin_info) != VK_SUCCESS) {
+        if (vkBeginCommandBuffer(render_engine_.command_buffers_[image_index], &begin_info) != VK_SUCCESS) {
             throw std::runtime_error("failed to begin recording command buffer");
         }
 
@@ -368,23 +368,23 @@ private:
         render_pass_info.clearValueCount = static_cast<uint32_t>(clear_values.size());
         render_pass_info.pClearValues = clear_values.data();
 
-        vkCmdBeginRenderPass(render_pipeline_.command_buffers_[image_index], &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBeginRenderPass(render_engine_.command_buffers_[image_index], &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
 
-        vkCmdBindPipeline(render_pipeline_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_.graphics_pipeline_);
+        vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_.graphics_pipeline_);
         VkBuffer vertex_buffers[] = {primitive_.vertex_buffer_};
         VkDeviceSize offsets[] = {0};
-        vkCmdBindVertexBuffers(render_pipeline_.command_buffers_[image_index], 0, 1, vertex_buffers, offsets);
-        vkCmdBindIndexBuffer(render_pipeline_.command_buffers_[image_index], primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(render_pipeline_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_.pipeline_layout_, 0, 1, &render_pipeline_.descriptor_sets_[image_index], 0, nullptr);
-        vkCmdDrawIndexed(render_pipeline_.command_buffers_[image_index], primitive_.index_count_, 1, 0, 0, 0);
+        vkCmdBindVertexBuffers(render_engine_.command_buffers_[image_index], 0, 1, vertex_buffers, offsets);
+        vkCmdBindIndexBuffer(render_engine_.command_buffers_[image_index], primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_.pipeline_layout_, 0, 1, &render_pipeline_.descriptor_sets_[image_index], 0, nullptr);
+        vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], primitive_.index_count_, 1, 0, 0, 0);
 
-        vkCmdEndRenderPass(render_pipeline_.command_buffers_[image_index]);
+        vkCmdEndRenderPass(render_engine_.command_buffers_[image_index]);
 
-        if (vkEndCommandBuffer(render_pipeline_.command_buffers_[image_index]) != VK_SUCCESS) {
+        if (vkEndCommandBuffer(render_engine_.command_buffers_[image_index]) != VK_SUCCESS) {
             throw std::runtime_error("failed to record command buffer");
         }
 #else
-        if (vkBeginCommandBuffer(render_pipeline_color_.command_buffers_[image_index], &begin_info) != VK_SUCCESS) {
+        if (vkBeginCommandBuffer(render_engine_.command_buffers_[image_index], &begin_info) != VK_SUCCESS) {
             throw std::runtime_error("failed to begin recording command buffer");
         }
 
@@ -402,28 +402,28 @@ private:
         render_pass_info.clearValueCount = static_cast<uint32_t>(clear_values.size());
         render_pass_info.pClearValues = clear_values.data();
 
-        vkCmdBeginRenderPass(render_pipeline_color_.command_buffers_[image_index], &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBeginRenderPass(render_engine_.command_buffers_[image_index], &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
 
-        vkCmdBindPipeline(render_pipeline_color_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_color_.graphics_pipeline_);
+        vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_color_.graphics_pipeline_);
         VkBuffer vertex_buffers_1[] = {color_primitive_.vertex_buffer_};
         VkDeviceSize offsets_1[] = {0};
-        vkCmdBindVertexBuffers(render_pipeline_color_.command_buffers_[image_index], 0, 1, vertex_buffers_1, offsets_1);
-        vkCmdBindIndexBuffer(render_pipeline_color_.command_buffers_[image_index], color_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(render_pipeline_color_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_color_.pipeline_layout_, 0, 1, &render_pipeline_color_.descriptor_sets_[image_index], 0, nullptr);
-        vkCmdDrawIndexed(render_pipeline_color_.command_buffers_[image_index], color_primitive_.index_count_, 1, 0, 0, 0);
+        vkCmdBindVertexBuffers(render_engine_.command_buffers_[image_index], 0, 1, vertex_buffers_1, offsets_1);
+        vkCmdBindIndexBuffer(render_engine_.command_buffers_[image_index], color_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_color_.pipeline_layout_, 0, 1, &render_pipeline_color_.descriptor_sets_[image_index], 0, nullptr);
+        vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], color_primitive_.index_count_, 1, 0, 0, 0);
 
-        vkCmdNextSubpass(render_pipeline_color_.command_buffers_[image_index], VK_SUBPASS_CONTENTS_INLINE);
-        vkCmdBindPipeline(render_pipeline_color_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_texture_.graphics_pipeline_);
+        vkCmdNextSubpass(render_engine_.command_buffers_[image_index], VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_texture_.graphics_pipeline_);
         VkBuffer vertex_buffers_2[] = {texture_primitive_.vertex_buffer_};
         VkDeviceSize offsets_2[] = {0};
-        vkCmdBindVertexBuffers(render_pipeline_color_.command_buffers_[image_index], 0, 1, vertex_buffers_2, offsets_2);
-        vkCmdBindIndexBuffer(render_pipeline_color_.command_buffers_[image_index], texture_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(render_pipeline_color_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_texture_.pipeline_layout_, 0, 1, &render_pipeline_texture_.descriptor_sets_[image_index], 0, nullptr);
-        vkCmdDrawIndexed(render_pipeline_color_.command_buffers_[image_index], texture_primitive_.index_count_, 1, 0, 0, 0);
+        vkCmdBindVertexBuffers(render_engine_.command_buffers_[image_index], 0, 1, vertex_buffers_2, offsets_2);
+        vkCmdBindIndexBuffer(render_engine_.command_buffers_[image_index], texture_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_texture_.pipeline_layout_, 0, 1, &render_pipeline_texture_.descriptor_sets_[image_index], 0, nullptr);
+        vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], texture_primitive_.index_count_, 1, 0, 0, 0);
 
-        vkCmdEndRenderPass(render_pipeline_color_.command_buffers_[image_index]);
+        vkCmdEndRenderPass(render_engine_.command_buffers_[image_index]);
 
-        if (vkEndCommandBuffer(render_pipeline_color_.command_buffers_[image_index]) != VK_SUCCESS) {
+        if (vkEndCommandBuffer(render_engine_.command_buffers_[image_index]) != VK_SUCCESS) {
             throw std::runtime_error("failed to record command buffer");
         }
 #endif
@@ -464,9 +464,9 @@ private:
 
         submit_info.commandBufferCount = 1;
 #ifdef MODEL
-        submit_info.pCommandBuffers = &render_pipeline_.command_buffers_[image_index];
+        submit_info.pCommandBuffers = &render_engine_.command_buffers_[image_index];
 #else
-        submit_info.pCommandBuffers = &render_pipeline_color_.command_buffers_[image_index];
+        submit_info.pCommandBuffers = &render_engine_.command_buffers_[image_index];
 #endif
 
         VkSemaphore signal_semaphores[] = {render_finished_semaphores_[current_frame_]};
