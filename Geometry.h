@@ -28,3 +28,20 @@ namespace Geometry {
         };
     }
 };
+
+namespace Geometry2D {
+    static void CreateSquare(std::vector<glm::vec2>& vertices, std::vector<std::vector<uint32_t>>& faces) {
+        const float r = .35f;
+
+        vertices = {
+            {-r, r},
+            {r, r},
+            {r, -r},
+            {-r, -r}
+        };
+
+        faces = {
+            {0, 1, 2, 3}
+        };
+    }
+};
