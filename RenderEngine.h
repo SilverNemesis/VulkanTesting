@@ -17,11 +17,11 @@ struct TextureSampler {
 };
 
 struct IndexedPrimitive {
-    VkBuffer vertex_buffer_;
-    VkDeviceMemory vertex_buffer_memory_;
-    VkBuffer index_buffer_;
-    VkDeviceMemory index_buffer_memory_;
-    uint32_t index_count_;
+    VkBuffer vertex_buffer_{};
+    VkDeviceMemory vertex_buffer_memory_{};
+    VkBuffer index_buffer_{};
+    VkDeviceMemory index_buffer_memory_{};
+    uint32_t index_count_{};
 };
 
 class RenderEngine {
@@ -885,19 +885,18 @@ private:
             dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
             dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
             dependencies.push_back(dependency);
-        } else if (subpass_count_ == 2) {
-            {
-                dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-                dependency.dstSubpass = 0;
-                dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-                dependency.srcAccessMask = 0;
-                dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-                dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-                dependencies.push_back(dependency);
-            }
-            {
-                dependency.srcSubpass = 0;
-                dependency.dstSubpass = 1;
+        } else if (subpass_count_ > 1) {
+            dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+            dependency.dstSubpass = 0;
+            dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            dependency.srcAccessMask = 0;
+            dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            dependencies.push_back(dependency);
+
+            for (uint32_t subpass = 1; subpass < subpass_count_; subpass++) {
+                dependency.srcSubpass = subpass - 1;
+                dependency.dstSubpass = subpass;
                 dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
                 dependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
                 dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
