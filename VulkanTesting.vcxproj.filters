@@ -9,6 +9,7 @@
     <ClInclude Include="Geometry_Color.h" />
     <ClInclude Include="Geometry_Texture.h" />
     <ClInclude Include="RenderEngine.h" />
+    <ClInclude Include="Geometry_2D.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="shaders">
@@ -22,6 +23,9 @@
     </Filter>
     <Filter Include="shaders\notexture">
       <UniqueIdentifier>{f9f7b986-e4da-418a-9491-5b2e5409d77a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="shaders\ortho2d">
+      <UniqueIdentifier>{42ad4f3e-fb49-43e9-b2e1-9250356db298}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -42,6 +46,12 @@
     </None>
     <None Include="shaders\notexture\shader.vert">
       <Filter>shaders\notexture</Filter>
+    </None>
+    <None Include="shaders\ortho2d\shader.frag">
+      <Filter>shaders\ortho2d</Filter>
+    </None>
+    <None Include="shaders\ortho2d\shader.vert">
+      <Filter>shaders\ortho2d</Filter>
     </None>
   </ItemGroup>
 </Project>
