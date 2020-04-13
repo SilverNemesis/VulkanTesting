@@ -30,12 +30,15 @@
 #include "Geometry.h"
 #include "Geometry_Color.h"
 #include "Geometry_Texture.h"
+#include "Geometry_2D.h"
 
-#define MODE                        0       // 0 = cubes, 1 = model
+#define MODE                        0       // 0 = cubes, 1 = model, 2 = sprites
 
 #if MODE == 1
 static const char* MODEL_PATH = "models/chalet.obj";
 static const char* TEXTURE_PATH = "textures/chalet.jpg";
+#elif MODE == 2
+static const char* SPRITE_PATH = "textures/texture.jpg";
 #endif
 
 static const int MAX_FRAMES_IN_FLIGHT = 2;
@@ -83,6 +86,38 @@ public:
         std::vector<uint32_t> indices;
         LoadModel(MODEL_PATH, vertices, indices);
         render_engine_.CreateIndexedPrimitive<Vertex_Texture, uint32_t>(vertices, indices, primitive_);
+#elif MODE == 2
+        {
+            std::vector<unsigned char> byte_code{};
+            byte_code = ReadFile("shaders/ortho2d/vert.spv");
+            VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
+            byte_code = ReadFile("shaders/ortho2d/frag.spv");
+            VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
+            render_pipeline_sprite_.Initialize(vertex_shader_module, fragment_shader_module, 0, 1);
+        }
+
+        LoadTexture(SPRITE_PATH, sprite_texture_);
+
+        for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
+            render_pipeline_sprite_.UpdateDescriptorSet(image_index, sprite_texture_.texture_image_view_, sprite_texture_.texture_sampler_);
+        }
+
+        {
+            std::vector<glm::vec2> vertices{};
+            std::vector<std::vector<uint32_t>> faces{};
+            Geometry2D::CreateSquare(vertices, faces);
+
+            std::vector<glm::vec2> texture_coordinates = {
+                {0, 0},
+                {1, 0},
+                {1, 1},
+                {0, 1}
+            };
+
+            Geometry_2D geometry_sprite{};
+            geometry_sprite.AddFaces(vertices, faces, texture_coordinates);
+            render_engine_.CreateIndexedPrimitive<Vertex_2D, uint32_t>(geometry_sprite.vertices, geometry_sprite.indices, sprite_primitive_);
+        }
 #else
         {
             std::vector<unsigned char> byte_code{};
@@ -155,6 +190,10 @@ public:
         render_pipeline_.Destroy();
         render_engine_.DestroyIndexedPrimitive(primitive_);
         render_engine_.DestroyTexture(texture_);
+#elif MODE == 2
+        render_pipeline_sprite_.Destroy();
+        render_engine_.DestroyIndexedPrimitive(sprite_primitive_);
+        render_engine_.DestroyTexture(sprite_texture_);
 #else
         render_pipeline_texture_.Destroy();
         render_pipeline_color_.Destroy();
@@ -181,6 +220,9 @@ private:
 #if MODE == 1
     RenderEngine render_engine_{1};
     RenderPipeline render_pipeline_{render_engine_, Vertex_Texture::getBindingDescription(), Vertex_Texture::getAttributeDescriptions(), 0};
+#elif MODE == 2
+    RenderEngine render_engine_{1};
+    RenderPipeline render_pipeline_sprite_{render_engine_, Vertex_2D::getBindingDescription(), Vertex_2D::getAttributeDescriptions(), 0};
 #else
     RenderEngine render_engine_{2};
     RenderPipeline render_pipeline_color_{render_engine_, Vertex_Color::getBindingDescription(), Vertex_Color::getAttributeDescriptions(), 0};
@@ -206,6 +248,9 @@ private:
 #if MODE == 1
     IndexedPrimitive primitive_{};
     TextureSampler texture_;
+#elif MODE == 2
+    IndexedPrimitive sprite_primitive_{};
+    TextureSampler sprite_texture_;
 #else
     IndexedPrimitive color_primitive_{};
     IndexedPrimitive texture_primitive_{};
@@ -221,6 +266,8 @@ private:
         vkDeviceWaitIdle(render_engine_.device_);
 #if MODE == 1
         render_pipeline_.Reset();
+#elif MODE == 2
+        render_pipeline_sprite_.Reset();
 #else
         render_pipeline_texture_.Reset();
         render_pipeline_color_.Reset();
@@ -230,6 +277,11 @@ private:
         render_pipeline_.Rebuild();
         for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
             render_pipeline_.UpdateDescriptorSet(image_index, texture_.texture_image_view_, texture_.texture_sampler_);
+        }
+#elif MODE == 2
+        render_pipeline_sprite_.Rebuild();
+        for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
+            render_pipeline_sprite_.UpdateDescriptorSet(image_index, sprite_texture_.texture_image_view_, sprite_texture_.texture_sampler_);
         }
 #else
         render_pipeline_color_.Rebuild();
@@ -384,6 +436,16 @@ private:
         vkCmdBindIndexBuffer(render_engine_.command_buffers_[image_index], primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
         vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_.pipeline_layout_, 0, 1, &render_pipeline_.descriptor_sets_[image_index], 0, nullptr);
         vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], primitive_.index_count_, 1, 0, 0, 0);
+#elif MODE == 2
+        vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_sprite_.graphics_pipeline_);
+        if (sprite_primitive_.index_count_ > 0) {
+            VkBuffer vertex_buffers_3[] = {sprite_primitive_.vertex_buffer_};
+            VkDeviceSize offsets_3[] = {0};
+            vkCmdBindVertexBuffers(render_engine_.command_buffers_[image_index], 0, 1, vertex_buffers_3, offsets_3);
+            vkCmdBindIndexBuffer(render_engine_.command_buffers_[image_index], sprite_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
+            vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_sprite_.pipeline_layout_, 0, 1, &render_pipeline_sprite_.descriptor_sets_[image_index], 0, nullptr);
+            vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], sprite_primitive_.index_count_, 1, 0, 0, 0);
+        }
 #else
         vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_color_.graphics_pipeline_);
         VkBuffer vertex_buffers_1[] = {color_primitive_.vertex_buffer_};
@@ -416,6 +478,7 @@ private:
         vkMapMemory(render_engine_.device_, render_pipeline_.uniform_buffers_memory_[image_index], 0, sizeof(uniform_buffer_), 0, &data);
         memcpy(data, &uniform_buffer_, sizeof(uniform_buffer_));
         vkUnmapMemory(render_engine_.device_, render_pipeline_.uniform_buffers_memory_[image_index]);
+#elif MODE == 2
 #else
         void* data;
 
