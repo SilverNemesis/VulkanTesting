@@ -299,11 +299,22 @@ private:
         auto current_time = std::chrono::high_resolution_clock::now();
         float total_time = std::chrono::duration<float, std::chrono::seconds::period>(current_time - start_time).count();
 
+        glm::mat4 projection_matrix = glm::perspective(glm::radians(45.0f), render_engine_.swapchain_extent_.width / (float)render_engine_.swapchain_extent_.height, 0.1f, 100.0f);
+        projection_matrix[1][1] *= -1;
+
+        glm::vec3 camera_position{0.0f, 0.0f, 4.0f};
+        glm::vec3 camera_forward{0.0f, 0.0f, -1.0f};
+        glm::vec3 camera_up{0.0f, 1.0f, 0.0f};
+
+        glm::mat4 view_matrix = glm::lookAt(glm::vec3{camera_position}, glm::vec3{camera_position + camera_forward}, glm::vec3{camera_up});
+
 #if MODE == 1
-        uniform_buffer_.model = glm::scale(glm::rotate(glm::mat4(1.0f), total_time * glm::radians(30.0f), glm::vec3(0.0f, 0.0f, 1.0f)), glm::vec3(1.2f, 1.2f, 1.2f));
-        uniform_buffer_.view = glm::lookAt(glm::vec3(2.0f, 2.4f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        uniform_buffer_.proj = glm::perspective(glm::radians(45.0f), render_engine_.swapchain_extent_.width / (float)render_engine_.swapchain_extent_.height, 0.1f, 10.0f);
-        uniform_buffer_.proj[1][1] *= -1;
+        uniform_buffer_.model = glm::mat4(1.0f);
+        uniform_buffer_.model = glm::translate(uniform_buffer_.model, glm::vec3(0.0f, -0.5f, 1.0f));
+        uniform_buffer_.model = glm::rotate(uniform_buffer_.model, glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        uniform_buffer_.model = glm::rotate(uniform_buffer_.model, total_time * glm::radians(30.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        uniform_buffer_.view = view_matrix;
+        uniform_buffer_.proj = projection_matrix;
 #else
         float offset_1 = std::sin(total_time);
         float offset_2 = std::cos(total_time);
@@ -314,9 +325,8 @@ private:
         uniform_buffer_1_.model = glm::rotate(uniform_buffer_1_.model, total_time * glm::radians(30.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         uniform_buffer_1_.model = glm::rotate(uniform_buffer_1_.model, total_time * glm::radians(10.0f), glm::vec3(1.0f, 0.0f, 0.0f));
         uniform_buffer_1_.model = glm::scale(uniform_buffer_1_.model, glm::vec3(1.5f, 1.5f, 1.5f));
-        uniform_buffer_1_.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 4.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        uniform_buffer_1_.proj = glm::perspective(glm::radians(45.0f), render_engine_.swapchain_extent_.width / (float)render_engine_.swapchain_extent_.height, 0.1f, 100.0f);
-        uniform_buffer_1_.proj[1][1] *= -1;
+        uniform_buffer_1_.view = view_matrix;
+        uniform_buffer_1_.proj = projection_matrix;
 
         uniform_buffer_2_.model = glm::mat4(1.0f);
         uniform_buffer_2_.model = glm::translate(uniform_buffer_2_.model, glm::vec3(1.0f, 0.0f, offset_2));
@@ -324,9 +334,8 @@ private:
         uniform_buffer_2_.model = glm::rotate(uniform_buffer_2_.model, total_time * glm::radians(30.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         uniform_buffer_2_.model = glm::rotate(uniform_buffer_2_.model, total_time * glm::radians(10.0f), glm::vec3(1.0f, 0.0f, 0.0f));
         uniform_buffer_2_.model = glm::scale(uniform_buffer_2_.model, glm::vec3(1.5f, 1.5f, 1.5f));
-        uniform_buffer_2_.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 4.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        uniform_buffer_2_.proj = glm::perspective(glm::radians(45.0f), render_engine_.swapchain_extent_.width / (float)render_engine_.swapchain_extent_.height, 0.1f, 100.0f);
-        uniform_buffer_2_.proj[1][1] *= -1;
+        uniform_buffer_2_.view = view_matrix;
+        uniform_buffer_2_.proj = projection_matrix;
 #endif
     }
 
