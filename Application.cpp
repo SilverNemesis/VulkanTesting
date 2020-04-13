@@ -172,6 +172,8 @@ public:
     }
 
     void Run() {
+        camera_position_ = {0.0f, 0.5f, -3.0f};
+
         while (!window_closed_) {
             ProcessInput();
 
@@ -216,6 +218,8 @@ private:
     int window_height_;
     bool window_minimized_ = false;
     bool window_closed_ = false;
+    std::array<bool, SDL_NUM_SCANCODES> key_state_{};
+    glm::vec3 camera_position_;
 
 #if MODE == 1
     RenderEngine render_engine_{1};
@@ -319,6 +323,9 @@ private:
                 window_closed_ = true;
                 break;
             case SDL_KEYDOWN:
+                if (event.key.repeat == 0) {
+                    key_state_[event.key.keysym.scancode] = true;
+                }
                 switch (event.key.keysym.scancode) {
                 case SDL_SCANCODE_ESCAPE:
                     window_closed_ = true;
@@ -326,6 +333,9 @@ private:
                 }
                 break;
             case SDL_KEYUP:
+                if (event.key.repeat == 0) {
+                    key_state_[event.key.keysym.scancode] = false;
+                }
                 break;
             case SDL_WINDOWEVENT:
                 switch (event.window.event) {
@@ -353,11 +363,27 @@ private:
 
         glm::mat4 projection_matrix = glm::perspective(glm::radians(45.0f), render_engine_.swapchain_extent_.width / (float)render_engine_.swapchain_extent_.height, 0.1f, 100.0f);
 
-        glm::vec3 camera_position{0.0f, 0.5f, -3.0f};
         glm::vec3 camera_forward{0.0f, 0.0f, 1.0f};
+        glm::vec3 camera_right{1.0f, 0.0f, 0.0f};
         glm::vec3 camera_up{0.0f, -1.0f, 0.0f};
 
-        glm::mat4 view_matrix = glm::lookAt(glm::vec3{camera_position}, glm::vec3{camera_position + camera_forward}, glm::vec3{camera_up});
+        if (key_state_[SDL_SCANCODE_W]) {
+            camera_position_ += 0.005f * camera_forward;
+        }
+
+        if (key_state_[SDL_SCANCODE_S]) {
+            camera_position_ -= 0.005f * camera_forward;
+        }
+
+        if (key_state_[SDL_SCANCODE_A]) {
+            camera_position_ += 0.005f * camera_right;
+        }
+
+        if (key_state_[SDL_SCANCODE_D]) {
+            camera_position_ -= 0.005f * camera_right;
+        }
+
+        glm::mat4 view_matrix = glm::lookAt(glm::vec3{camera_position_}, glm::vec3{camera_position_ + camera_forward}, glm::vec3{camera_up});
 
 #if MODE == 1
         uniform_buffer_.model = glm::mat4(1.0f);
