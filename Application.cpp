@@ -383,7 +383,7 @@ private:
             camera_position_ -= 0.005f * camera_right;
         }
 
-        glm::mat4 view_matrix = glm::lookAt(glm::vec3{camera_position_}, glm::vec3{camera_position_ + camera_forward}, glm::vec3{camera_up});
+        glm::mat4 view_matrix = glm::lookAt(camera_position_, camera_position_ + camera_forward, camera_up);
 
 #if MODE == 1
         uniform_buffer_.model = glm::mat4(1.0f);
