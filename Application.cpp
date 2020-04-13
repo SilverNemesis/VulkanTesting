@@ -73,16 +73,7 @@ public:
             render_pipeline_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 1);
         }
 
-        int texture_width, texture_height, texture_channels;
-        stbi_uc* pixels = stbi_load(TEXTURE_PATH, &texture_width, &texture_height, &texture_channels, STBI_rgb_alpha);
-
-        if (!pixels) {
-            throw std::runtime_error("failed to load texture image");
-        }
-
-        render_engine_.CreateTexture(pixels, texture_width, texture_height, texture_);
-
-        stbi_image_free(pixels);
+        LoadTexture(TEXTURE_PATH, texture_);
 
         for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
             render_pipeline_.UpdateDescriptorSet(image_index, texture_.texture_image_view_, texture_.texture_sampler_);
@@ -478,6 +469,19 @@ private:
         }
 
         current_frame_ = (current_frame_ + 1) % MAX_FRAMES_IN_FLIGHT;
+    }
+
+    void LoadTexture(const char* fileName, TextureSampler& texture) {
+        int texture_width, texture_height, texture_channels;
+        stbi_uc* pixels = stbi_load(fileName, &texture_width, &texture_height, &texture_channels, STBI_rgb_alpha);
+
+        if (!pixels) {
+            throw std::runtime_error("failed to load texture image");
+        }
+
+        render_engine_.CreateTexture(pixels, texture_width, texture_height, texture);
+
+        stbi_image_free(pixels);
     }
 
     void LoadModel(const char* fileName, std::vector<Vertex_Texture>& vertices, std::vector<uint32_t>& indices) {
