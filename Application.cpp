@@ -162,8 +162,6 @@ public:
             render_engine_.CreateIndexedPrimitive<Vertex_Texture, uint32_t>(geometry_texture.vertices, geometry_texture.indices, texture_primitive_);
         }
 #endif
-
-        CreateSyncObjects();
     }
 
     void Run() {
@@ -195,11 +193,6 @@ public:
         render_engine_.DestroyIndexedPrimitive(texture_primitive_);
         render_engine_.DestroyIndexedPrimitive(color_primitive_);
 #endif
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            vkDestroySemaphore(render_engine_.device_, render_finished_semaphores_[i], nullptr);
-            vkDestroySemaphore(render_engine_.device_, image_available_semaphores_[i], nullptr);
-            vkDestroyFence(render_engine_.device_, in_flight_fences_[i], nullptr);
-        }
         render_engine_.Destroy();
         SDL_DestroyWindow(window_);
         SDL_Quit();
@@ -221,13 +214,13 @@ private:
     float camera_pitch_ = 0.0;
 
 #if MODE == 1
-    RenderEngine render_engine_{1};
+    RenderEngine render_engine_{1, MAX_FRAMES_IN_FLIGHT};
     RenderPipeline render_pipeline_{render_engine_, Vertex_Texture::getBindingDescription(), Vertex_Texture::getAttributeDescriptions(), 0};
 #elif MODE == 2
-    RenderEngine render_engine_{1};
+    RenderEngine render_engine_{1, MAX_FRAMES_IN_FLIGHT};
     RenderPipeline render_pipeline_sprite_{render_engine_, Vertex_2D::getBindingDescription(), Vertex_2D::getAttributeDescriptions(), 0};
 #else
-    RenderEngine render_engine_{2};
+    RenderEngine render_engine_{2, MAX_FRAMES_IN_FLIGHT};
     RenderPipeline render_pipeline_color_{render_engine_, Vertex_Color::getBindingDescription(), Vertex_Color::getAttributeDescriptions(), 0};
     RenderPipeline render_pipeline_texture_{render_engine_, Vertex_Texture::getBindingDescription(), Vertex_Texture::getAttributeDescriptions(), 1};
 #endif
@@ -242,12 +235,6 @@ private:
     UniformBufferObject uniform_buffer_1_{};
     UniformBufferObject uniform_buffer_2_{};
 
-    std::vector<VkSemaphore> image_available_semaphores_;
-    std::vector<VkSemaphore> render_finished_semaphores_;
-    std::vector<VkFence> in_flight_fences_;
-    std::vector<VkFence> images_in_flight_;
-    size_t current_frame_ = 0;
-
 #if MODE == 1
     IndexedPrimitive primitive_{};
     TextureSampler texture_;
@@ -258,73 +245,6 @@ private:
     IndexedPrimitive color_primitive_{};
     IndexedPrimitive texture_primitive_{};
 #endif
-
-    void GetRequiredExtensions(std::vector<const char*>& required_extensions) {
-        uint32_t required_extension_count = 0;
-        SDL_Vulkan_GetInstanceExtensions(window_, &required_extension_count, nullptr);
-        required_extensions.resize(required_extension_count);
-        SDL_Vulkan_GetInstanceExtensions(window_, &required_extension_count, required_extensions.data());
-    }
-
-    void CreateSurface(VkInstance& instance, VkSurfaceKHR& surface) {
-        if (!SDL_Vulkan_CreateSurface(window_, instance, &surface)) {
-            throw std::runtime_error("failed to create window surface");
-        }
-    }
-
-    void GetDrawableSize(int& window_width, int& window_height) {
-        SDL_Vulkan_GetDrawableSize(window_, &window_width, &window_height);
-    }
-
-    void PipelineReset() {
-#if MODE == 1
-        render_pipeline_.Reset();
-#elif MODE == 2
-        render_pipeline_sprite_.Reset();
-#else
-        render_pipeline_texture_.Reset();
-        render_pipeline_color_.Reset();
-#endif
-    }
-
-    void PipelineRebuild() {
-#if MODE == 1
-        render_pipeline_.Rebuild();
-        for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
-            render_pipeline_.UpdateDescriptorSet(image_index, texture_.texture_image_view_, texture_.texture_sampler_);
-        }
-#elif MODE == 2
-        render_pipeline_sprite_.Rebuild();
-        for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
-            render_pipeline_sprite_.UpdateDescriptorSet(image_index, sprite_texture_.texture_image_view_, sprite_texture_.texture_sampler_);
-        }
-#else
-        render_pipeline_color_.Rebuild();
-        render_pipeline_texture_.Rebuild();
-#endif
-    }
-
-    void CreateSyncObjects() {
-        image_available_semaphores_.resize(MAX_FRAMES_IN_FLIGHT);
-        render_finished_semaphores_.resize(MAX_FRAMES_IN_FLIGHT);
-        in_flight_fences_.resize(MAX_FRAMES_IN_FLIGHT);
-        images_in_flight_.resize(render_engine_.image_count_, VK_NULL_HANDLE);
-
-        VkSemaphoreCreateInfo semaphore_info = {};
-        semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-        VkFenceCreateInfo fence_info = {};
-        fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-        fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            if (vkCreateSemaphore(render_engine_.device_, &semaphore_info, nullptr, &image_available_semaphores_[i]) != VK_SUCCESS ||
-                vkCreateSemaphore(render_engine_.device_, &semaphore_info, nullptr, &render_finished_semaphores_[i]) != VK_SUCCESS ||
-                vkCreateFence(render_engine_.device_, &fence_info, nullptr, &in_flight_fences_[i]) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create synchronization objects for a frame");
-            }
-        }
-    }
 
     void ProcessInput() {
         SDL_Event event;
@@ -455,16 +375,10 @@ private:
     }
 
     void Render() {
-        vkWaitForFences(render_engine_.device_, 1, &in_flight_fences_[current_frame_], VK_TRUE, UINT64_MAX);
-
         uint32_t image_index;
-        VkResult result = vkAcquireNextImageKHR(render_engine_.device_, render_engine_.swapchain_, UINT64_MAX, image_available_semaphores_[current_frame_], VK_NULL_HANDLE, &image_index);
 
-        if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-            render_engine_.RebuildSwapchain();
+        if (!render_engine_.AcquireNextImage(image_index)) {
             return;
-        } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-            throw std::runtime_error("failed to acquire swap chain image");
         }
 
         //auto beg_time = std::chrono::high_resolution_clock::now();
@@ -559,51 +473,54 @@ private:
         //auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - beg_time).count();
         //RenderDevice::Log("%lld", duration);
 
-        if (images_in_flight_[image_index] != VK_NULL_HANDLE) {
-            vkWaitForFences(render_engine_.device_, 1, &images_in_flight_[image_index], VK_TRUE, UINT64_MAX);
+        render_engine_.SubmitDrawCommands(image_index);
+
+        render_engine_.PresentImage(image_index);
+    }
+
+    void GetRequiredExtensions(std::vector<const char*>& required_extensions) {
+        uint32_t required_extension_count = 0;
+        SDL_Vulkan_GetInstanceExtensions(window_, &required_extension_count, nullptr);
+        required_extensions.resize(required_extension_count);
+        SDL_Vulkan_GetInstanceExtensions(window_, &required_extension_count, required_extensions.data());
+    }
+
+    void CreateSurface(VkInstance& instance, VkSurfaceKHR& surface) {
+        if (!SDL_Vulkan_CreateSurface(window_, instance, &surface)) {
+            throw std::runtime_error("failed to create window surface");
         }
-        images_in_flight_[image_index] = in_flight_fences_[current_frame_];
+    }
 
-        VkSubmitInfo submit_info = {};
-        submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    void GetDrawableSize(int& window_width, int& window_height) {
+        SDL_Vulkan_GetDrawableSize(window_, &window_width, &window_height);
+    }
 
-        VkSemaphore wait_semaphores[] = {image_available_semaphores_[current_frame_]};
-        VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-        submit_info.waitSemaphoreCount = 1;
-        submit_info.pWaitSemaphores = wait_semaphores;
-        submit_info.pWaitDstStageMask = wait_stages;
+    void PipelineReset() {
+#if MODE == 1
+        render_pipeline_.Reset();
+#elif MODE == 2
+        render_pipeline_sprite_.Reset();
+#else
+        render_pipeline_texture_.Reset();
+        render_pipeline_color_.Reset();
+#endif
+    }
 
-        submit_info.commandBufferCount = 1;
-        submit_info.pCommandBuffers = &render_engine_.command_buffers_[image_index];
-
-        VkSemaphore signal_semaphores[] = {render_finished_semaphores_[current_frame_]};
-        submit_info.signalSemaphoreCount = 1;
-        submit_info.pSignalSemaphores = signal_semaphores;
-
-        vkResetFences(render_engine_.device_, 1, &in_flight_fences_[current_frame_]);
-
-        if (vkQueueSubmit(render_engine_.graphics_queue_, 1, &submit_info, in_flight_fences_[current_frame_]) != VK_SUCCESS) {
-            throw std::runtime_error("failed to submit draw command buffer");
+    void PipelineRebuild() {
+#if MODE == 1
+        render_pipeline_.Rebuild();
+        for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
+            render_pipeline_.UpdateDescriptorSet(image_index, texture_.texture_image_view_, texture_.texture_sampler_);
         }
-
-        VkPresentInfoKHR present_info = {};
-        present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-        present_info.waitSemaphoreCount = 1;
-        present_info.pWaitSemaphores = signal_semaphores;
-        VkSwapchainKHR swap_chains[] = {render_engine_.swapchain_};
-        present_info.swapchainCount = 1;
-        present_info.pSwapchains = swap_chains;
-        present_info.pImageIndices = &image_index;
-
-        result = vkQueuePresentKHR(render_engine_.present_queue_, &present_info);
-
-        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-            render_engine_.RebuildSwapchain();
-        } else if (result != VK_SUCCESS) {
-            throw std::runtime_error("failed to present swap chain image");
+#elif MODE == 2
+        render_pipeline_sprite_.Rebuild();
+        for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
+            render_pipeline_sprite_.UpdateDescriptorSet(image_index, sprite_texture_.texture_image_view_, sprite_texture_.texture_sampler_);
         }
-
-        current_frame_ = (current_frame_ + 1) % MAX_FRAMES_IN_FLIGHT;
+#else
+        render_pipeline_color_.Rebuild();
+        render_pipeline_texture_.Rebuild();
+#endif
     }
 
     void LoadTexture(const char* fileName, TextureSampler& texture) {
