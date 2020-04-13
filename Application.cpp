@@ -31,7 +31,9 @@
 #include "Geometry_Color.h"
 #include "Geometry_Texture.h"
 
-#ifdef MODEL
+#define MODE                        0       // 0 = cubes, 1 = model, 2 = sprites
+
+#if MODE == 1
 static const char* MODEL_PATH = "models/chalet.obj";
 static const char* TEXTURE_PATH = "textures/chalet.jpg";
 #endif
@@ -61,7 +63,7 @@ public:
         SDL_Vulkan_GetInstanceExtensions(window_, &required_extension_count, required_extensions.data());
         render_engine_.Initialize(window_width_, window_height_, required_extensions, CreateSurface, window_);
 
-#ifdef MODEL
+#if MODE == 1
         {
             std::vector<unsigned char> byte_code{};
             byte_code = ReadFile("shaders/texture/vert.spv");
@@ -109,33 +111,35 @@ public:
             render_pipeline_texture_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 0);
         }
 
-        std::vector<glm::vec3> vertices{};
-        std::vector<std::vector<uint32_t>> faces{};
-        Geometry::CreateCube(vertices, faces);
+        {
+            std::vector<glm::vec3> vertices{};
+            std::vector<std::vector<uint32_t>> faces{};
+            Geometry::CreateCube(vertices, faces);
 
-        std::vector<glm::vec3> colors = {
-            {1.0, 1.0, 1.0},
-            {1.0, 0.0, 0.0},
-            {0.0, 1.0, 0.0},
-            {0.0, 0.0, 1.0},
-            {1.0, 1.0, 0.0},
-            {1.0, 0.0, 1.0}
-        };
+            std::vector<glm::vec3> colors = {
+                {1.0, 1.0, 1.0},
+                {1.0, 0.0, 0.0},
+                {0.0, 1.0, 0.0},
+                {0.0, 0.0, 1.0},
+                {1.0, 1.0, 0.0},
+                {1.0, 0.0, 1.0}
+            };
 
-        Geometry_Color geometry_color{};
-        geometry_color.AddFaces(vertices, faces, colors);
-        render_engine_.CreateIndexedPrimitive<Vertex_Color, uint32_t>(geometry_color.vertices, geometry_color.indices, color_primitive_);
+            Geometry_Color geometry_color{};
+            geometry_color.AddFaces(vertices, faces, colors);
+            render_engine_.CreateIndexedPrimitive<Vertex_Color, uint32_t>(geometry_color.vertices, geometry_color.indices, color_primitive_);
 
-        std::vector<glm::vec2> texture_coordinates = {
-            {0, 0},
-            {1, 0},
-            {1, 1},
-            {0, 1}
-        };
+            std::vector<glm::vec2> texture_coordinates = {
+                {0, 0},
+                {1, 0},
+                {1, 1},
+                {0, 1}
+            };
 
-        Geometry_Texture geometry_texture{};
-        geometry_texture.AddFaces(vertices, faces, texture_coordinates);
-        render_engine_.CreateIndexedPrimitive<Vertex_Texture, uint32_t>(geometry_texture.vertices, geometry_texture.indices, texture_primitive_);
+            Geometry_Texture geometry_texture{};
+            geometry_texture.AddFaces(vertices, faces, texture_coordinates);
+            render_engine_.CreateIndexedPrimitive<Vertex_Texture, uint32_t>(geometry_texture.vertices, geometry_texture.indices, texture_primitive_);
+        }
 #endif
 
         CreateSyncObjects();
@@ -156,7 +160,7 @@ public:
     void Shutdown() {
         SDL_Log("application shutdown");
         vkDeviceWaitIdle(render_engine_.device_);
-#ifdef MODEL
+#if MODE == 1
         render_pipeline_.Destroy();
         render_engine_.DestroyIndexedPrimitive(primitive_);
         render_engine_.DestroyTexture(texture_);
@@ -183,7 +187,7 @@ private:
     bool window_minimized_ = false;
     bool window_closed_ = false;
 
-#ifdef MODEL
+#if MODE == 1
     RenderEngine render_engine_{1};
     RenderPipeline render_pipeline_{render_engine_, Vertex_Texture::getBindingDescription(), Vertex_Texture::getAttributeDescriptions(), 0};
 #else
@@ -208,10 +212,13 @@ private:
     std::vector<VkFence> images_in_flight_;
     size_t current_frame_ = 0;
 
+#if MODE == 1
     IndexedPrimitive primitive_{};
     TextureSampler texture_;
+#else
     IndexedPrimitive color_primitive_{};
     IndexedPrimitive texture_primitive_{};
+#endif
 
     static void CreateSurface(void* window, VkInstance& instance, VkSurfaceKHR& surface) {
         if (!SDL_Vulkan_CreateSurface((SDL_Window*)window, instance, &surface)) {
@@ -221,14 +228,14 @@ private:
 
     void RecreateSwapchain() {
         vkDeviceWaitIdle(render_engine_.device_);
-#ifdef MODEL
+#if MODE == 1
         render_pipeline_.Reset();
 #else
         render_pipeline_texture_.Reset();
         render_pipeline_color_.Reset();
 #endif
         render_engine_.RebuildSwapchain(window_width_, window_height_);
-#ifdef MODEL
+#if MODE == 1
         render_pipeline_.Rebuild();
         for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
             render_pipeline_.UpdateDescriptorSet(image_index, texture_.texture_image_view_, texture_.texture_sampler_);
@@ -301,7 +308,7 @@ private:
         auto current_time = std::chrono::high_resolution_clock::now();
         float total_time = std::chrono::duration<float, std::chrono::seconds::period>(current_time - start_time).count();
 
-#ifdef MODEL
+#if MODE == 1
         uniform_buffer_.model = glm::scale(glm::rotate(glm::mat4(1.0f), total_time * glm::radians(30.0f), glm::vec3(0.0f, 0.0f, 1.0f)), glm::vec3(1.2f, 1.2f, 1.2f));
         uniform_buffer_.view = glm::lookAt(glm::vec3(2.0f, 2.4f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         uniform_buffer_.proj = glm::perspective(glm::radians(45.0f), render_engine_.swapchain_extent_.width / (float)render_engine_.swapchain_extent_.height, 0.1f, 10.0f);
@@ -350,7 +357,6 @@ private:
         VkCommandBufferBeginInfo begin_info = {};
         begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-#ifdef MODEL
         if (vkBeginCommandBuffer(render_engine_.command_buffers_[image_index], &begin_info) != VK_SUCCESS) {
             throw std::runtime_error("failed to begin recording command buffer");
         }
@@ -371,40 +377,15 @@ private:
 
         vkCmdBeginRenderPass(render_engine_.command_buffers_[image_index], &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
 
+#if MODE == 1
         vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_.graphics_pipeline_);
-        VkBuffer vertex_buffers[] = {primitive_.vertex_buffer_};
-        VkDeviceSize offsets[] = {0};
-        vkCmdBindVertexBuffers(render_engine_.command_buffers_[image_index], 0, 1, vertex_buffers, offsets);
+        VkBuffer vertex_buffers_1[] = {primitive_.vertex_buffer_};
+        VkDeviceSize offsets_1[] = {0};
+        vkCmdBindVertexBuffers(render_engine_.command_buffers_[image_index], 0, 1, vertex_buffers_1, offsets_1);
         vkCmdBindIndexBuffer(render_engine_.command_buffers_[image_index], primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
         vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_.pipeline_layout_, 0, 1, &render_pipeline_.descriptor_sets_[image_index], 0, nullptr);
         vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], primitive_.index_count_, 1, 0, 0, 0);
-
-        vkCmdEndRenderPass(render_engine_.command_buffers_[image_index]);
-
-        if (vkEndCommandBuffer(render_engine_.command_buffers_[image_index]) != VK_SUCCESS) {
-            throw std::runtime_error("failed to record command buffer");
-        }
 #else
-        if (vkBeginCommandBuffer(render_engine_.command_buffers_[image_index], &begin_info) != VK_SUCCESS) {
-            throw std::runtime_error("failed to begin recording command buffer");
-        }
-
-        VkRenderPassBeginInfo render_pass_info = {};
-        render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        render_pass_info.renderPass = render_engine_.render_pass_;
-        render_pass_info.framebuffer = render_engine_.framebuffers_[image_index];
-        render_pass_info.renderArea.offset = {0, 0};
-        render_pass_info.renderArea.extent = render_engine_.swapchain_extent_;
-
-        std::array<VkClearValue, 2> clear_values = {};
-        clear_values[0].color = {0.0f, 0.0f, 0.0f, 1.0f};
-        clear_values[1].depthStencil = {1.0f, 0};
-
-        render_pass_info.clearValueCount = static_cast<uint32_t>(clear_values.size());
-        render_pass_info.pClearValues = clear_values.data();
-
-        vkCmdBeginRenderPass(render_engine_.command_buffers_[image_index], &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
-
         vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_color_.graphics_pipeline_);
         VkBuffer vertex_buffers_1[] = {color_primitive_.vertex_buffer_};
         VkDeviceSize offsets_1[] = {0};
@@ -414,6 +395,7 @@ private:
         vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], color_primitive_.index_count_, 1, 0, 0, 0);
 
         vkCmdNextSubpass(render_engine_.command_buffers_[image_index], VK_SUBPASS_CONTENTS_INLINE);
+
         vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_texture_.graphics_pipeline_);
         VkBuffer vertex_buffers_2[] = {texture_primitive_.vertex_buffer_};
         VkDeviceSize offsets_2[] = {0};
@@ -421,21 +403,23 @@ private:
         vkCmdBindIndexBuffer(render_engine_.command_buffers_[image_index], texture_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
         vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_texture_.pipeline_layout_, 0, 1, &render_pipeline_texture_.descriptor_sets_[image_index], 0, nullptr);
         vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], texture_primitive_.index_count_, 1, 0, 0, 0);
+#endif
 
         vkCmdEndRenderPass(render_engine_.command_buffers_[image_index]);
 
         if (vkEndCommandBuffer(render_engine_.command_buffers_[image_index]) != VK_SUCCESS) {
             throw std::runtime_error("failed to record command buffer");
         }
-#endif
 
+#if MODE == 1
         void* data;
 
-#ifdef MODEL
         vkMapMemory(render_engine_.device_, render_pipeline_.uniform_buffers_memory_[image_index], 0, sizeof(uniform_buffer_), 0, &data);
         memcpy(data, &uniform_buffer_, sizeof(uniform_buffer_));
         vkUnmapMemory(render_engine_.device_, render_pipeline_.uniform_buffers_memory_[image_index]);
 #else
+        void* data;
+
         vkMapMemory(render_engine_.device_, render_pipeline_color_.uniform_buffers_memory_[image_index], 0, sizeof(uniform_buffer_1_), 0, &data);
         memcpy(data, &uniform_buffer_1_, sizeof(uniform_buffer_1_));
         vkUnmapMemory(render_engine_.device_, render_pipeline_color_.uniform_buffers_memory_[image_index]);
@@ -464,11 +448,7 @@ private:
         submit_info.pWaitDstStageMask = wait_stages;
 
         submit_info.commandBufferCount = 1;
-#ifdef MODEL
         submit_info.pCommandBuffers = &render_engine_.command_buffers_[image_index];
-#else
-        submit_info.pCommandBuffers = &render_engine_.command_buffers_[image_index];
-#endif
 
         VkSemaphore signal_semaphores[] = {render_finished_semaphores_[current_frame_]};
         submit_info.signalSemaphoreCount = 1;
