@@ -43,7 +43,7 @@ static const char* SPRITE_PATH = "textures/texture.jpg";
 
 static const int MAX_FRAMES_IN_FLIGHT = 2;
 
-class Application {
+class Application : RenderApplication {
 public:
     Application(int window_width, int window_height) : window_width_(window_width), window_height_(window_height) {}
 
@@ -59,12 +59,7 @@ public:
             throw std::runtime_error(SDL_GetError());
         }
 
-        SDL_Vulkan_GetDrawableSize(window_, &window_width_, &window_height_);
-        uint32_t required_extension_count = 0;
-        SDL_Vulkan_GetInstanceExtensions(window_, &required_extension_count, nullptr);
-        std::vector<const char*> required_extensions(required_extension_count);
-        SDL_Vulkan_GetInstanceExtensions(window_, &required_extension_count, required_extensions.data());
-        render_engine_.Initialize(window_width_, window_height_, required_extensions, CreateSurface, window_);
+        render_engine_.Initialize(this);
 
 #if MODE == 1
         {
@@ -264,14 +259,24 @@ private:
     IndexedPrimitive texture_primitive_{};
 #endif
 
-    static void CreateSurface(void* window, VkInstance& instance, VkSurfaceKHR& surface) {
-        if (!SDL_Vulkan_CreateSurface((SDL_Window*)window, instance, &surface)) {
+    void GetRequiredExtensions(std::vector<const char*>& required_extensions) {
+        uint32_t required_extension_count = 0;
+        SDL_Vulkan_GetInstanceExtensions(window_, &required_extension_count, nullptr);
+        required_extensions.resize(required_extension_count);
+        SDL_Vulkan_GetInstanceExtensions(window_, &required_extension_count, required_extensions.data());
+    }
+
+    void CreateSurface(VkInstance& instance, VkSurfaceKHR& surface) {
+        if (!SDL_Vulkan_CreateSurface(window_, instance, &surface)) {
             throw std::runtime_error("failed to create window surface");
         }
     }
 
-    void RecreateSwapchain() {
-        vkDeviceWaitIdle(render_engine_.device_);
+    void GetDrawableSize(int& window_width, int& window_height) {
+        SDL_Vulkan_GetDrawableSize(window_, &window_width, &window_height);
+    }
+
+    void PipelineReset() {
 #if MODE == 1
         render_pipeline_.Reset();
 #elif MODE == 2
@@ -280,7 +285,9 @@ private:
         render_pipeline_texture_.Reset();
         render_pipeline_color_.Reset();
 #endif
-        render_engine_.RebuildSwapchain(window_width_, window_height_);
+    }
+
+    void PipelineRebuild() {
 #if MODE == 1
         render_pipeline_.Rebuild();
         for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
@@ -360,7 +367,7 @@ private:
                 switch (event.window.event) {
                 case SDL_WINDOWEVENT_RESIZED:
                     SDL_Vulkan_GetDrawableSize(window_, &window_width_, &window_height_);
-                    RecreateSwapchain();
+                    render_engine_.RebuildSwapchain();
                     break;
                 case SDL_WINDOWEVENT_MINIMIZED:
                     window_minimized_ = true;
@@ -454,7 +461,7 @@ private:
         VkResult result = vkAcquireNextImageKHR(render_engine_.device_, render_engine_.swapchain_, UINT64_MAX, image_available_semaphores_[current_frame_], VK_NULL_HANDLE, &image_index);
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-            RecreateSwapchain();
+            render_engine_.RebuildSwapchain();
             return;
         } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
             throw std::runtime_error("failed to acquire swap chain image");
@@ -591,7 +598,7 @@ private:
         result = vkQueuePresentKHR(render_engine_.present_queue_, &present_info);
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-            RecreateSwapchain();
+            render_engine_.RebuildSwapchain();
         } else if (result != VK_SUCCESS) {
             throw std::runtime_error("failed to present swap chain image");
         }

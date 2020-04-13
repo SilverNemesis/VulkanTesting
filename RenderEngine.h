@@ -24,6 +24,15 @@ struct IndexedPrimitive {
     uint32_t index_count_{};
 };
 
+class RenderApplication {
+public:
+    virtual void GetRequiredExtensions(std::vector<const char*>& required_extensions) = 0;
+    virtual void CreateSurface(VkInstance& instance, VkSurfaceKHR& surface) = 0;
+    virtual void GetDrawableSize(int& window_width, int& window_height) = 0;
+    virtual void PipelineReset() = 0;
+    virtual void PipelineRebuild() = 0;
+};
+
 class RenderEngine {
 public:
     static void (*Log)(const char* format, ...);
@@ -41,26 +50,29 @@ public:
     VkSurfaceFormatKHR surface_format_{};
     VkFormat depth_format_ = VK_FORMAT_UNDEFINED;
     VkPresentModeKHR present_mode_ = VK_PRESENT_MODE_IMMEDIATE_KHR;
+    RenderApplication* render_application_;
     VkSwapchainKHR swapchain_{};
     VkExtent2D swapchain_extent_{};
     std::vector<VkCommandBuffer> command_buffers_{};
-    uint32_t subpass_count_ = 1;
     VkRenderPass render_pass_{};
     std::vector<VkFramebuffer> framebuffers_{};
 
     RenderEngine(uint32_t subpass_count) : subpass_count_(subpass_count) {}
 
-    void Initialize(uint32_t window_width, uint32_t window_height, std::vector<const char*>& required_extensions, void (*CreateSurface)(void* window, VkInstance& instance, VkSurfaceKHR& surface), void* window) {
+    void Initialize(RenderApplication* render_application) {
 #ifdef _DEBUG
         debug_layers_ = true;
 #endif
+        render_application_ = render_application;
+        std::vector<const char*> required_extensions{};
+        render_application_->GetRequiredExtensions(required_extensions);
         CreateInstance(required_extensions);
         Log("instance created");
         if (debug_layers_) {
             SetupDebugMessenger();
             Log("debug messenger created");
         }
-        CreateSurface(window, instance_, surface_);
+        render_application_->CreateSurface(instance_, surface_);
         Log("surface created");
         PickPhysicalDevice();
         Log("physical device selected");
@@ -68,6 +80,9 @@ public:
         Log("logical device created");
         CreateCommandPool();
         Log("command pool created");
+        int window_width;
+        int window_height;
+        render_application_->GetDrawableSize(window_width, window_height);
         ChooseSwapExtent(window_width, window_height);
         image_count_ = capabilities_.minImageCount > 2 ? capabilities_.minImageCount : 2;
         std::vector<VkSurfaceFormatKHR> formats;
@@ -106,7 +121,12 @@ public:
         Log("instance destroyed");
     }
 
-    void RebuildSwapchain(uint32_t window_width, uint32_t window_height) {
+    void RebuildSwapchain() {
+        vkDeviceWaitIdle(device_);
+        render_application_->PipelineReset();
+        int window_width;
+        int window_height;
+        render_application_->GetDrawableSize(window_width, window_height);
         if (swapchain_extent_.width != window_width || swapchain_extent_.height != window_height) {
             for (auto framebuffer : framebuffers_) {
                 vkDestroyFramebuffer(device_, framebuffer, nullptr);
@@ -115,6 +135,7 @@ public:
             CreateSwapchain(window_width, window_height);
             CreateFramebuffers(render_pass_, framebuffers_);
         }
+        render_application_->PipelineRebuild();
     }
 
     void CreateFramebuffers(VkRenderPass render_pass, std::vector<VkFramebuffer>& framebuffers) {
@@ -353,8 +374,9 @@ public:
     }
 
 private:
+    uint32_t subpass_count_;
     bool debug_layers_ = false;
-    VkInstance instance_;
+    VkInstance instance_{};
 
     VkDebugUtilsMessengerEXT debug_messenger_;
 
