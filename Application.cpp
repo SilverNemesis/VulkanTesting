@@ -172,8 +172,6 @@ public:
     }
 
     void Run() {
-        camera_position_ = {0.0f, 0.5f, -3.0f};
-
         while (!window_closed_) {
             ProcessInput();
 
@@ -219,7 +217,13 @@ private:
     bool window_minimized_ = false;
     bool window_closed_ = false;
     std::array<bool, SDL_NUM_SCANCODES> key_state_{};
-    glm::vec3 camera_position_;
+    bool mouse_capture_ = false;
+    glm::vec3 camera_position_{0.0f, 0.5f, -3.0f};
+    glm::vec3 camera_forward_{0.0f, 0.0f, 1.0f};
+    glm::vec3 camera_right_{1.0f, 0.0f, 0.0f};
+    glm::vec3 camera_up_{0.0f, -1.0f, 0.0f};
+    float camera_yaw_ = 0.0;
+    float camera_pitch_ = 0.0;
 
 #if MODE == 1
     RenderEngine render_engine_{1};
@@ -328,7 +332,22 @@ private:
                 }
                 switch (event.key.keysym.scancode) {
                 case SDL_SCANCODE_ESCAPE:
-                    window_closed_ = true;
+                    if (mouse_capture_) {
+                        mouse_capture_ = false;
+                        SDL_SetRelativeMouseMode(SDL_FALSE);
+                    } else {
+                        window_closed_ = true;
+                    }
+                    break;
+                case SDL_SCANCODE_SPACE:
+                    if (mouse_capture_) {
+                        mouse_capture_ = false;
+                        SDL_SetRelativeMouseMode(SDL_FALSE);
+                    } else {
+                        mouse_capture_ = true;
+                        SDL_SetRelativeMouseMode(SDL_TRUE);
+                        SDL_GetRelativeMouseState(NULL, NULL);
+                    }
                     break;
                 }
                 break;
@@ -363,27 +382,39 @@ private:
 
         glm::mat4 projection_matrix = glm::perspective(glm::radians(45.0f), render_engine_.swapchain_extent_.width / (float)render_engine_.swapchain_extent_.height, 0.1f, 100.0f);
 
-        glm::vec3 camera_forward{0.0f, 0.0f, 1.0f};
-        glm::vec3 camera_right{1.0f, 0.0f, 0.0f};
-        glm::vec3 camera_up{0.0f, -1.0f, 0.0f};
+        if (mouse_capture_) {
+            int mouse_x;
+            int mouse_y;
+            SDL_GetRelativeMouseState(&mouse_x, &mouse_y);
+            camera_yaw_ = std::fmod(camera_yaw_ - 0.05f * mouse_x, 360.0f);
+            camera_pitch_ = std::fmod(camera_pitch_ + 0.05f * mouse_y, 360.0f);
+            camera_pitch_ = camera_pitch_ < -89.0f ? -89.0f : camera_pitch_ > 89.0f ? 89.0f : camera_pitch_;
+
+            glm::mat4 rotation = glm::mat4{1.0f};
+            rotation = glm::rotate(rotation, glm::radians(camera_pitch_), glm::vec3{-1.0f, 0.0f, 0.0f});
+            rotation = glm::rotate(rotation, glm::radians(camera_yaw_), glm::vec3{0.0f, -1.0f, 0.0f});
+            camera_forward_ = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f) * rotation;
+            camera_right_ = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f) * rotation;
+            camera_up_ = glm::vec4(0.0f, -1.0f, 0.0f, 1.0f) * rotation;
+        }
 
         if (key_state_[SDL_SCANCODE_W]) {
-            camera_position_ += 0.005f * camera_forward;
+            camera_position_ += 0.005f * camera_forward_;
         }
 
         if (key_state_[SDL_SCANCODE_S]) {
-            camera_position_ -= 0.005f * camera_forward;
+            camera_position_ -= 0.005f * camera_forward_;
         }
 
         if (key_state_[SDL_SCANCODE_A]) {
-            camera_position_ += 0.005f * camera_right;
+            camera_position_ += 0.005f * camera_right_;
         }
 
         if (key_state_[SDL_SCANCODE_D]) {
-            camera_position_ -= 0.005f * camera_right;
+            camera_position_ -= 0.005f * camera_right_;
         }
 
-        glm::mat4 view_matrix = glm::lookAt(camera_position_, camera_position_ + camera_forward, camera_up);
+        glm::mat4 view_matrix = glm::lookAt(camera_position_, camera_position_ + camera_forward_, camera_up_);
 
 #if MODE == 1
         uniform_buffer_.model = glm::mat4(1.0f);
