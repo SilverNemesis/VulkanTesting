@@ -16,3 +16,6 @@ glslc color/shader.frag -o color/frag.spv
 
 glslc ortho2d/shader.vert -o ortho2d/vert.spv
 glslc ortho2d/shader.frag -o ortho2d/frag.spv
+
+glslc text/shader.vert -o text/vert.spv
+glslc text/shader.frag -o text/frag.spv
