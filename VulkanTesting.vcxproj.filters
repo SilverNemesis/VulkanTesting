@@ -10,6 +10,7 @@
     <ClInclude Include="Geometry_Texture.h" />
     <ClInclude Include="RenderEngine.h" />
     <ClInclude Include="Geometry_2D.h" />
+    <ClInclude Include="Geometry_Text.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="shaders">
@@ -26,6 +27,15 @@
     </Filter>
     <Filter Include="shaders\ortho2d">
       <UniqueIdentifier>{42ad4f3e-fb49-43e9-b2e1-9250356db298}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="fonts">
+      <UniqueIdentifier>{fcde1983-0ef3-4a30-b7b3-da2da656a605}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="fonts\open-sans">
+      <UniqueIdentifier>{25decb81-09e6-4766-a0fe-5226a2f02c3d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="shaders\text">
+      <UniqueIdentifier>{eab54361-23ec-45af-9123-d30786941e4a}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -53,5 +63,16 @@
     <None Include="shaders\ortho2d\shader.vert">
       <Filter>shaders\ortho2d</Filter>
     </None>
+    <None Include="shaders\text\shader.frag">
+      <Filter>shaders\text</Filter>
+    </None>
+    <None Include="shaders\text\shader.vert">
+      <Filter>shaders\text</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Font Include="fonts\open-sans\OpenSans-Regular.ttf">
+      <Filter>fonts\open-sans</Filter>
+    </Font>
   </ItemGroup>
 </Project>
