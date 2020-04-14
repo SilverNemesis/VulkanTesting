@@ -13,10 +13,6 @@ struct Vertex_2D {
     glm::vec2 pos;
     glm::vec2 texCoord;
 
-    bool operator==(const Vertex_2D& other) const {
-        return pos == other.pos && texCoord == other.texCoord;
-    }
-
     static VkVertexInputBindingDescription getBindingDescription() {
         static VkVertexInputBindingDescription bindingDescription = {0, sizeof(Vertex_2D), VK_VERTEX_INPUT_RATE_VERTEX};
         return bindingDescription;
@@ -31,12 +27,6 @@ struct Vertex_2D {
     }
 };
 
-struct Vertex_2D_Hash {
-    size_t operator()(Vertex_2D const& vertex) const {
-        return std::hash<glm::vec2>()(vertex.pos) ^ std::hash<glm::vec2>()(vertex.texCoord);
-    }
-};
-
 class Geometry_2D {
 public:
     std::vector<Vertex_2D> vertices;
@@ -48,7 +38,6 @@ public:
         }
     }
 
-private:
     void AddFace(std::vector<glm::vec2>& vertices, std::vector<uint32_t>& face, std::vector<glm::vec2>& texture_coords) {
         switch (face.size()) {
         case 3:

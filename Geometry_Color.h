@@ -13,10 +13,6 @@ struct Vertex_Color {
     glm::vec3 pos;
     glm::vec3 color;
 
-    bool operator==(const Vertex_Color& other) const {
-        return pos == other.pos && color == other.color;
-    }
-
     static VkVertexInputBindingDescription getBindingDescription() {
         static VkVertexInputBindingDescription bindingDescription = {0, sizeof(Vertex_Color), VK_VERTEX_INPUT_RATE_VERTEX};
         return bindingDescription;
@@ -44,7 +40,6 @@ public:
         }
     }
 
-private:
     void AddFace(std::vector<glm::vec3>& vertices, std::vector<uint32_t>& face, glm::vec3& color) {
         switch (face.size()) {
         case 3:
