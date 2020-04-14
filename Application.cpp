@@ -25,14 +25,18 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+#include <ft2build.h>
+#include FT_FREETYPE_H
+
 #include "RenderEngine.h"
 #include "RenderPipeline.h"
 #include "Geometry.h"
 #include "Geometry_Color.h"
 #include "Geometry_Texture.h"
 #include "Geometry_2D.h"
+#include "Geometry_Text.h"
 
-#define MODE                        0       // 0 = cubes, 1 = model, 2 = sprites
+#define MODE                        0       // 0 = cubes, 1 = model, 2 = sprites, 3 = text
 
 #if MODE == 1
 static const char* MODEL_PATH = "models/chalet.obj";
@@ -68,7 +72,7 @@ public:
             VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = ReadFile("shaders/texture/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 1);
+            render_pipeline_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 1, false);
         }
 
         LoadTexture(TEXTURE_PATH, texture_);
@@ -88,7 +92,7 @@ public:
             VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = ReadFile("shaders/ortho2d/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_sprite_.Initialize(vertex_shader_module, fragment_shader_module, 0, 1);
+            render_pipeline_sprite_.Initialize(vertex_shader_module, fragment_shader_module, 0, 1, false);
         }
 
         LoadTexture(SPRITE_PATH, sprite_texture_);
@@ -113,6 +117,25 @@ public:
             geometry_sprite.AddFaces(vertices, faces, texture_coordinates);
             render_engine_.CreateIndexedPrimitive<Vertex_2D, uint32_t>(geometry_sprite.vertices, geometry_sprite.indices, sprite_primitive_);
         }
+#elif MODE == 3
+        {
+            std::vector<unsigned char> byte_code{};
+            byte_code = ReadFile("shaders/text/vert.spv");
+            VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
+            byte_code = ReadFile("shaders/text/frag.spv");
+            VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
+            render_pipeline_text_.Initialize(vertex_shader_module, fragment_shader_module, 0, 1, true);
+        }
+
+        LoadFont();
+
+        for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
+            render_pipeline_text_.UpdateDescriptorSet(image_index, font_texture_.texture_image_view_, font_texture_.texture_sampler_);
+        }
+
+        Geometry_Text geometry_text{};
+        RenderText("Hello world!", 0, 0, {1.0, 1.0, 1.0}, geometry_text);
+        render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text.vertices, geometry_text.indices, font_primitive_);
 #else
         {
             std::vector<unsigned char> byte_code{};
@@ -120,7 +143,7 @@ public:
             VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = ReadFile("shaders/color/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_color_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 0);
+            render_pipeline_color_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 0, false);
         }
 
         {
@@ -129,7 +152,7 @@ public:
             VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = ReadFile("shaders/notexture/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_texture_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 0);
+            render_pipeline_texture_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 0, false);
         }
 
         {
@@ -187,6 +210,10 @@ public:
         render_pipeline_sprite_.Destroy();
         render_engine_.DestroyIndexedPrimitive(sprite_primitive_);
         render_engine_.DestroyTexture(sprite_texture_);
+#elif MODE == 3
+        render_pipeline_text_.Destroy();
+        render_engine_.DestroyIndexedPrimitive(font_primitive_);
+        render_engine_.DestroyTexture(font_texture_);
 #else
         render_pipeline_texture_.Destroy();
         render_pipeline_color_.Destroy();
@@ -219,6 +246,9 @@ private:
 #elif MODE == 2
     RenderEngine render_engine_{1, MAX_FRAMES_IN_FLIGHT};
     RenderPipeline render_pipeline_sprite_{render_engine_, Vertex_2D::getBindingDescription(), Vertex_2D::getAttributeDescriptions(), 0};
+#elif MODE == 3
+    RenderEngine render_engine_{1, MAX_FRAMES_IN_FLIGHT};
+    RenderPipeline render_pipeline_text_{render_engine_, Vertex_Text::getBindingDescription(), Vertex_Text::getAttributeDescriptions(), 0};
 #else
     RenderEngine render_engine_{2, MAX_FRAMES_IN_FLIGHT};
     RenderPipeline render_pipeline_color_{render_engine_, Vertex_Color::getBindingDescription(), Vertex_Color::getAttributeDescriptions(), 0};
@@ -235,12 +265,28 @@ private:
     UniformBufferObject uniform_buffer_1_{};
     UniformBufferObject uniform_buffer_2_{};
 
+    TextureSampler font_texture_;
+
+    struct Character {
+        uint16_t x;
+        uint16_t y;
+        uint8_t a;
+        uint8_t w;
+        uint8_t h;
+        uint8_t dx;
+        uint8_t dy;
+    };
+
+    std::map<unsigned char, Character> characters_;
+
 #if MODE == 1
     IndexedPrimitive primitive_{};
     TextureSampler texture_;
 #elif MODE == 2
     IndexedPrimitive sprite_primitive_{};
     TextureSampler sprite_texture_;
+#elif MODE == 3
+    IndexedPrimitive font_primitive_{};
 #else
     IndexedPrimitive color_primitive_{};
     IndexedPrimitive texture_primitive_{};
@@ -424,6 +470,16 @@ private:
             vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_sprite_.pipeline_layout_, 0, 1, &render_pipeline_sprite_.descriptor_sets_[image_index], 0, nullptr);
             vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], sprite_primitive_.index_count_, 1, 0, 0, 0);
         }
+#elif MODE == 3
+        vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_text_.graphics_pipeline_);
+        if (font_primitive_.index_count_ > 0) {
+            VkBuffer vertex_buffers_3[] = {font_primitive_.vertex_buffer_};
+            VkDeviceSize offsets_3[] = {0};
+            vkCmdBindVertexBuffers(render_engine_.command_buffers_[image_index], 0, 1, vertex_buffers_3, offsets_3);
+            vkCmdBindIndexBuffer(render_engine_.command_buffers_[image_index], font_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
+            vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_text_.pipeline_layout_, 0, 1, &render_pipeline_text_.descriptor_sets_[image_index], 0, nullptr);
+            vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], font_primitive_.index_count_, 1, 0, 0, 0);
+        }
 #else
         vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_color_.graphics_pipeline_);
         VkBuffer vertex_buffers_1[] = {color_primitive_.vertex_buffer_};
@@ -457,6 +513,7 @@ private:
         memcpy(data, &uniform_buffer_, sizeof(uniform_buffer_));
         vkUnmapMemory(render_engine_.device_, render_pipeline_.uniform_buffers_memory_[image_index]);
 #elif MODE == 2
+#elif MODE == 3
 #else
         void* data;
 
@@ -500,6 +557,8 @@ private:
         render_pipeline_.Reset();
 #elif MODE == 2
         render_pipeline_sprite_.Reset();
+#elif MODE == 3
+        render_pipeline_text_.Reset();
 #else
         render_pipeline_texture_.Reset();
         render_pipeline_color_.Reset();
@@ -516,6 +575,11 @@ private:
         render_pipeline_sprite_.Rebuild();
         for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
             render_pipeline_sprite_.UpdateDescriptorSet(image_index, sprite_texture_.texture_image_view_, sprite_texture_.texture_sampler_);
+        }
+#elif MODE == 3
+        render_pipeline_text_.Rebuild();
+        for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
+            render_pipeline_text_.UpdateDescriptorSet(image_index, font_texture_.texture_image_view_, font_texture_.texture_sampler_);
         }
 #else
         render_pipeline_color_.Rebuild();
@@ -571,6 +635,113 @@ private:
                 indices.push_back(unique_vertices[vertex]);
             }
         }
+    }
+
+    void RenderText(const char* text, int x, int y, glm::vec3 color, Geometry_Text& geometry) {
+        float xscale = 1.0f / window_width_;
+        float yscale = 1.0f / window_height_;
+
+        std::vector<uint32_t> face = {3, 2, 1, 0};
+
+        for (const char* cur = text; *cur != 0; cur++) {
+            Character ch = characters_[*cur];
+
+            float l = static_cast<float>(x + ch.dx) * xscale;
+            float r = static_cast<float>(x + ch.dx + ch.w) * xscale;
+            float t = -static_cast<float>(y - ch.h + ch.dy) * yscale;
+            float b = -static_cast<float>(y + ch.dy) * yscale;
+
+            std::vector<glm::vec2> vertices = {
+                {l, b},
+                {r, b},
+                {r, t},
+                {l, t}
+            };
+
+            l = static_cast<float>(ch.x) / 512.0f;
+            r = static_cast<float>(ch.x + ch.w) / 512.0f;
+            t = static_cast<float>(ch.y) / 512.0f;
+            b = static_cast<float>(ch.y + ch.h) / 512.0f;
+
+            std::vector<glm::vec2> texture_coords = {
+                {l, b},
+                {r, b},
+                {r, t},
+                {l, t}
+            };
+
+            geometry.AddFace(vertices, face, texture_coords, color);
+
+            x += ch.a;
+        }
+    }
+
+    void LoadFont() {
+        FT_Library ft;
+        if (FT_Init_FreeType(&ft)) {
+            throw std::runtime_error("unable to initialize font library");
+        }
+
+        FT_Face face;
+        if (FT_New_Face(ft, "fonts/open-sans/OpenSans-Regular.ttf", 0, &face)) {
+            throw std::runtime_error("unable to load font");
+        }
+
+        FT_Set_Pixel_Sizes(face, 0, 48);
+
+        unsigned int width = 512;
+        unsigned int height = 512;
+        unsigned char* pixels = new unsigned char[width * height];
+        memset(pixels, 0, width * height);
+
+        unsigned int x = 0;
+        unsigned int y = 0;
+        unsigned int my = 0;
+
+        for (unsigned char i = 0; i < 128; i++) {
+            if (!isprint(i)) {
+                continue;
+            }
+
+            if (FT_Load_Char(face, i, FT_LOAD_RENDER)) {
+                throw std::runtime_error("failed to load glyph");
+            }
+
+            FT_Bitmap b = face->glyph->bitmap;
+
+            if (x + b.width > width) {
+                x = 0;
+                y = my + 1;
+            }
+
+            if (y + b.rows > height) {
+                continue;
+            }
+
+            unsigned char* src = b.buffer;
+            unsigned char* dst = pixels + y * width + x;
+
+            for (unsigned int r = 0; r < b.rows; r++) {
+                memcpy(dst, src, b.width);
+                dst += width;
+                src += b.width;
+            }
+
+            characters_[i] = {(uint16_t)x, (uint16_t)y, (uint8_t)(face->glyph->advance.x >> 6), (uint8_t)b.width, (uint8_t)b.rows, (uint8_t)face->glyph->bitmap_left, (uint8_t)face->glyph->bitmap_top};
+
+            x += b.width + 1;
+
+            if (y + b.rows > my) {
+                my = y + b.rows;
+            }
+        }
+
+        render_engine_.CreateAlphaTexture(pixels, width, height, font_texture_);
+
+        delete[] pixels;
+
+        FT_Done_Face(face);
+        FT_Done_FreeType(ft);
     }
 
     std::vector<unsigned char> ReadFile(const std::string& file_name) {

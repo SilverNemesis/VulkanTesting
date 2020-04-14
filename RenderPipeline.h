@@ -17,11 +17,12 @@ public:
         render_engine_(render_engine), binding_description_(binding_description), attribute_descriptions_(attribute_descriptions), subpass_(subpass) {
     }
 
-    void Initialize(VkShaderModule& vertex_shader_module, VkShaderModule& fragment_shader_module, size_t uniform_buffer_size, uint32_t image_sampler_count) {
+    void Initialize(VkShaderModule& vertex_shader_module, VkShaderModule& fragment_shader_module, size_t uniform_buffer_size, uint32_t image_sampler_count, bool use_alpha) {
         this->vertex_shader_module_ = vertex_shader_module;
         this->fragment_shader_module_ = fragment_shader_module;
         this->uniform_buffer_size_ = uniform_buffer_size;
         this->image_sampler_count_ = image_sampler_count;
+        this->use_alpha_ = use_alpha;
         CreateUniformBuffers();
         CreateDescriptorSetLayout();
         Rebuild();
@@ -104,6 +105,7 @@ private:
     size_t uniform_buffer_size_{};
     VkDescriptorPool descriptor_pool_{};
     VkDescriptorSetLayout descriptor_set_layout_{};
+    bool use_alpha_ = false;
 
     void CreateDescriptorSetLayout() {
         std::vector<VkDescriptorSetLayoutBinding> bindings;
@@ -279,8 +281,18 @@ private:
 
         VkPipelineColorBlendAttachmentState color_blend_attachment = {};
         color_blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-        color_blend_attachment.blendEnable = VK_FALSE;
+        if (use_alpha_) {
+            color_blend_attachment.blendEnable = VK_TRUE;
+            color_blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+            color_blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            color_blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+            color_blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        } else {
+            color_blend_attachment.blendEnable = VK_FALSE;
+        }
 
+        //glEnable(GL_BLEND);
+        //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         VkPipelineColorBlendStateCreateInfo color_blending = {};
         color_blending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
         color_blending.logicOpEnable = VK_FALSE;
