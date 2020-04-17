@@ -37,6 +37,9 @@
     <Filter Include="shaders\text">
       <UniqueIdentifier>{eab54361-23ec-45af-9123-d30786941e4a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="fonts\katakana">
+      <UniqueIdentifier>{e83f7f34-43c9-4406-b95f-e426cc5920bb}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\color\shader.frag">
@@ -73,6 +76,9 @@
   <ItemGroup>
     <Font Include="fonts\open-sans\OpenSans-Regular.ttf">
       <Filter>fonts\open-sans</Filter>
+    </Font>
+    <Font Include="fonts\katakana\katakana.ttf">
+      <Filter>fonts\katakana</Filter>
     </Font>
   </ItemGroup>
 </Project>

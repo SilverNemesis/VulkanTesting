@@ -170,6 +170,7 @@
     <None Include="shaders\text\shader.vert" />
   </ItemGroup>
   <ItemGroup>
+    <Font Include="fonts\katakana\katakana.ttf" />
     <Font Include="fonts\open-sans\OpenSans-Regular.ttf" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
