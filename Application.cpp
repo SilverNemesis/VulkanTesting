@@ -47,6 +47,22 @@ static const char* SPRITE_PATH = "textures/texture.jpg";
 
 static const int MAX_FRAMES_IN_FLIGHT = 2;
 
+struct Font {
+    TextureSampler font_texture_;
+
+    struct Character {
+        uint16_t x;
+        uint16_t y;
+        uint8_t a;
+        uint8_t w;
+        uint8_t h;
+        uint8_t dx;
+        uint8_t dy;
+    };
+
+    std::map<unsigned char, Character> characters_;
+};
+
 class Application : RenderApplication {
 public:
     Application(int window_width, int window_height) : window_width_(window_width), window_height_(window_height) {}
@@ -78,7 +94,7 @@ public:
         LoadTexture(TEXTURE_PATH, texture_);
 
         for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
-            render_pipeline_.UpdateDescriptorSet(image_index, texture_.texture_image_view_, texture_.texture_sampler_);
+            render_pipeline_.UpdateDescriptorSet(image_index, {texture_});
         }
 
         std::vector<Vertex_Texture> vertices;
@@ -98,7 +114,7 @@ public:
         LoadTexture(SPRITE_PATH, sprite_texture_);
 
         for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
-            render_pipeline_sprite_.UpdateDescriptorSet(image_index, sprite_texture_.texture_image_view_, sprite_texture_.texture_sampler_);
+            render_pipeline_sprite_.UpdateDescriptorSet(image_index, {sprite_texture_});
         }
 
         {
@@ -124,17 +140,32 @@ public:
             VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = ReadFile("shaders/text/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_text_.Initialize(vertex_shader_module, fragment_shader_module, 0, 1, true);
+            render_pipeline_text_.Initialize(vertex_shader_module, fragment_shader_module, 0, 2, true);
         }
 
-        LoadFont();
+        LoadFont("fonts/open-sans/OpenSans-Regular.ttf", font_1_);
+        LoadFont("fonts/katakana/katakana.ttf", font_2_);
 
         for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
-            render_pipeline_text_.UpdateDescriptorSet(image_index, font_texture_.texture_image_view_, font_texture_.texture_sampler_);
+            render_pipeline_text_.UpdateDescriptorSet(image_index, {font_1_.font_texture_, font_2_.font_texture_});
         }
 
         Geometry_Text geometry_text{};
-        RenderText("Hello world!", 0, 0, {1.0, 1.0, 1.0}, geometry_text);
+        //RenderText("Hello world!", 0, 0, {1.0, 1.0, 1.0}, geometry_text);
+
+        std::vector<glm::vec2> vertices{};
+        std::vector<std::vector<uint32_t>> faces{};
+        Geometry2D::CreateSquare(vertices, faces);
+
+        std::vector<glm::vec2> texture_coordinates = {
+            {0, 1},
+            {1, 1},
+            {1, 0},
+            {0, 0}
+        };
+
+        geometry_text.AddFaces(vertices, faces, texture_coordinates, glm::vec3{0, 1, 0});
+
         render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text.vertices, geometry_text.indices, font_primitive_);
 #else
         {
@@ -213,7 +244,8 @@ public:
 #elif MODE == 3
         render_pipeline_text_.Destroy();
         render_engine_.DestroyIndexedPrimitive(font_primitive_);
-        render_engine_.DestroyTexture(font_texture_);
+        DestroyFont(font_1_);
+        DestroyFont(font_2_);
 #else
         render_pipeline_texture_.Destroy();
         render_pipeline_color_.Destroy();
@@ -265,19 +297,8 @@ private:
     UniformBufferObject uniform_buffer_1_{};
     UniformBufferObject uniform_buffer_2_{};
 
-    TextureSampler font_texture_;
-
-    struct Character {
-        uint16_t x;
-        uint16_t y;
-        uint8_t a;
-        uint8_t w;
-        uint8_t h;
-        uint8_t dx;
-        uint8_t dy;
-    };
-
-    std::map<unsigned char, Character> characters_;
+    Font font_1_{};
+    Font font_2_{};
 
 #if MODE == 1
     IndexedPrimitive primitive_{};
@@ -453,51 +474,77 @@ private:
         vkCmdBeginRenderPass(render_engine_.command_buffers_[image_index], &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
 
 #if MODE == 1
-        vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_.graphics_pipeline_);
+        RenderPipeline& render_pipeline = render_pipeline_;
+        VkDescriptorSet& descriptor_set = render_pipeline.descriptor_sets_[image_index];
+
+        render_pipeline.UpdateUniformBuffer(image_index, &uniform_buffer_);
+
+        vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.graphics_pipeline_);
         VkBuffer vertex_buffers_1[] = {primitive_.vertex_buffer_};
         VkDeviceSize offsets_1[] = {0};
         vkCmdBindVertexBuffers(render_engine_.command_buffers_[image_index], 0, 1, vertex_buffers_1, offsets_1);
         vkCmdBindIndexBuffer(render_engine_.command_buffers_[image_index], primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_.pipeline_layout_, 0, 1, &render_pipeline_.descriptor_sets_[image_index], 0, nullptr);
+        vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set, 0, nullptr);
         vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], primitive_.index_count_, 1, 0, 0, 0);
 #elif MODE == 2
-        vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_sprite_.graphics_pipeline_);
+        RenderPipeline& render_pipeline = render_pipeline_sprite_;
+        VkDescriptorSet& descriptor_set = render_pipeline.descriptor_sets_[image_index];
+
+        vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.graphics_pipeline_);
         if (sprite_primitive_.index_count_ > 0) {
             VkBuffer vertex_buffers_3[] = {sprite_primitive_.vertex_buffer_};
             VkDeviceSize offsets_3[] = {0};
             vkCmdBindVertexBuffers(render_engine_.command_buffers_[image_index], 0, 1, vertex_buffers_3, offsets_3);
             vkCmdBindIndexBuffer(render_engine_.command_buffers_[image_index], sprite_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-            vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_sprite_.pipeline_layout_, 0, 1, &render_pipeline_sprite_.descriptor_sets_[image_index], 0, nullptr);
+            vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set, 0, nullptr);
             vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], sprite_primitive_.index_count_, 1, 0, 0, 0);
         }
 #elif MODE == 3
-        vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_text_.graphics_pipeline_);
+        RenderPipeline& render_pipeline = render_pipeline_text_;
+        VkDescriptorSet& descriptor_set = render_pipeline.descriptor_sets_[image_index];
+
+        vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.graphics_pipeline_);
         if (font_primitive_.index_count_ > 0) {
             VkBuffer vertex_buffers_3[] = {font_primitive_.vertex_buffer_};
             VkDeviceSize offsets_3[] = {0};
             vkCmdBindVertexBuffers(render_engine_.command_buffers_[image_index], 0, 1, vertex_buffers_3, offsets_3);
             vkCmdBindIndexBuffer(render_engine_.command_buffers_[image_index], font_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-            vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_text_.pipeline_layout_, 0, 1, &render_pipeline_text_.descriptor_sets_[image_index], 0, nullptr);
+            vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set, 0, nullptr);
             vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], font_primitive_.index_count_, 1, 0, 0, 0);
         }
 #else
-        vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_color_.graphics_pipeline_);
-        VkBuffer vertex_buffers_1[] = {color_primitive_.vertex_buffer_};
-        VkDeviceSize offsets_1[] = {0};
-        vkCmdBindVertexBuffers(render_engine_.command_buffers_[image_index], 0, 1, vertex_buffers_1, offsets_1);
-        vkCmdBindIndexBuffer(render_engine_.command_buffers_[image_index], color_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_color_.pipeline_layout_, 0, 1, &render_pipeline_color_.descriptor_sets_[image_index], 0, nullptr);
-        vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], color_primitive_.index_count_, 1, 0, 0, 0);
+
+        {
+            RenderPipeline& render_pipeline = render_pipeline_color_;
+            VkDescriptorSet& descriptor_set = render_pipeline.descriptor_sets_[image_index];
+
+            render_pipeline.UpdateUniformBuffer(image_index, &uniform_buffer_1_);
+
+            vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.graphics_pipeline_);
+            VkBuffer vertex_buffers_1[] = {color_primitive_.vertex_buffer_};
+            VkDeviceSize offsets_1[] = {0};
+            vkCmdBindVertexBuffers(render_engine_.command_buffers_[image_index], 0, 1, vertex_buffers_1, offsets_1);
+            vkCmdBindIndexBuffer(render_engine_.command_buffers_[image_index], color_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
+            vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set, 0, nullptr);
+            vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], color_primitive_.index_count_, 1, 0, 0, 0);
+        }
 
         vkCmdNextSubpass(render_engine_.command_buffers_[image_index], VK_SUBPASS_CONTENTS_INLINE);
 
-        vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_texture_.graphics_pipeline_);
-        VkBuffer vertex_buffers_2[] = {texture_primitive_.vertex_buffer_};
-        VkDeviceSize offsets_2[] = {0};
-        vkCmdBindVertexBuffers(render_engine_.command_buffers_[image_index], 0, 1, vertex_buffers_2, offsets_2);
-        vkCmdBindIndexBuffer(render_engine_.command_buffers_[image_index], texture_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline_texture_.pipeline_layout_, 0, 1, &render_pipeline_texture_.descriptor_sets_[image_index], 0, nullptr);
-        vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], texture_primitive_.index_count_, 1, 0, 0, 0);
+        {
+            RenderPipeline& render_pipeline = render_pipeline_texture_;
+            VkDescriptorSet& descriptor_set = render_pipeline.descriptor_sets_[image_index];
+
+            render_pipeline.UpdateUniformBuffer(image_index, &uniform_buffer_2_);
+
+            vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.graphics_pipeline_);
+            VkBuffer vertex_buffers_2[] = {texture_primitive_.vertex_buffer_};
+            VkDeviceSize offsets_2[] = {0};
+            vkCmdBindVertexBuffers(render_engine_.command_buffers_[image_index], 0, 1, vertex_buffers_2, offsets_2);
+            vkCmdBindIndexBuffer(render_engine_.command_buffers_[image_index], texture_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
+            vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set, 0, nullptr);
+            vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], texture_primitive_.index_count_, 1, 0, 0, 0);
+        }
 #endif
 
         vkCmdEndRenderPass(render_engine_.command_buffers_[image_index]);
@@ -505,26 +552,6 @@ private:
         if (vkEndCommandBuffer(render_engine_.command_buffers_[image_index]) != VK_SUCCESS) {
             throw std::runtime_error("failed to record command buffer");
         }
-
-#if MODE == 1
-        void* data;
-
-        vkMapMemory(render_engine_.device_, render_pipeline_.uniform_buffers_memory_[image_index], 0, sizeof(uniform_buffer_), 0, &data);
-        memcpy(data, &uniform_buffer_, sizeof(uniform_buffer_));
-        vkUnmapMemory(render_engine_.device_, render_pipeline_.uniform_buffers_memory_[image_index]);
-#elif MODE == 2
-#elif MODE == 3
-#else
-        void* data;
-
-        vkMapMemory(render_engine_.device_, render_pipeline_color_.uniform_buffers_memory_[image_index], 0, sizeof(uniform_buffer_1_), 0, &data);
-        memcpy(data, &uniform_buffer_1_, sizeof(uniform_buffer_1_));
-        vkUnmapMemory(render_engine_.device_, render_pipeline_color_.uniform_buffers_memory_[image_index]);
-
-        vkMapMemory(render_engine_.device_, render_pipeline_texture_.uniform_buffers_memory_[image_index], 0, sizeof(uniform_buffer_2_), 0, &data);
-        memcpy(data, &uniform_buffer_2_, sizeof(uniform_buffer_2_));
-        vkUnmapMemory(render_engine_.device_, render_pipeline_texture_.uniform_buffers_memory_[image_index]);
-#endif
 
         //auto end_time = std::chrono::high_resolution_clock::now();
         //auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - beg_time).count();
@@ -569,17 +596,17 @@ private:
 #if MODE == 1
         render_pipeline_.Rebuild();
         for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
-            render_pipeline_.UpdateDescriptorSet(image_index, texture_.texture_image_view_, texture_.texture_sampler_);
+            render_pipeline_.UpdateDescriptorSet(image_index, {texture_});
         }
 #elif MODE == 2
         render_pipeline_sprite_.Rebuild();
         for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
-            render_pipeline_sprite_.UpdateDescriptorSet(image_index, sprite_texture_.texture_image_view_, sprite_texture_.texture_sampler_);
+            render_pipeline_sprite_.UpdateDescriptorSet(image_index, {sprite_texture_});
         }
 #elif MODE == 3
         render_pipeline_text_.Rebuild();
         for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
-            render_pipeline_text_.UpdateDescriptorSet(image_index, font_texture_.texture_image_view_, font_texture_.texture_sampler_);
+            render_pipeline_text_.UpdateDescriptorSet(image_index, {font_1_.font_texture_, font_2_.font_texture_});
         }
 #else
         render_pipeline_color_.Rebuild();
@@ -637,14 +664,14 @@ private:
         }
     }
 
-    void RenderText(const char* text, int x, int y, glm::vec3 color, Geometry_Text& geometry) {
+    void RenderText(Font font, const char* text, int x, int y, glm::vec3 color, Geometry_Text& geometry) {
         float xscale = 1.0f / window_width_;
         float yscale = 1.0f / window_height_;
 
         std::vector<uint32_t> face = {3, 2, 1, 0};
 
         for (const char* cur = text; *cur != 0; cur++) {
-            Character ch = characters_[*cur];
+            Font::Character ch = font.characters_[*cur];
 
             float l = static_cast<float>(x + ch.dx) * xscale;
             float r = static_cast<float>(x + ch.dx + ch.w) * xscale;
@@ -676,14 +703,14 @@ private:
         }
     }
 
-    void LoadFont() {
+    void LoadFont(const char *file_name, Font& font) {
         FT_Library ft;
         if (FT_Init_FreeType(&ft)) {
             throw std::runtime_error("unable to initialize font library");
         }
 
         FT_Face face;
-        if (FT_New_Face(ft, "fonts/open-sans/OpenSans-Regular.ttf", 0, &face)) {
+        if (FT_New_Face(ft, file_name, 0, &face)) {
             throw std::runtime_error("unable to load font");
         }
 
@@ -694,16 +721,20 @@ private:
         unsigned char* pixels = new unsigned char[width * height];
         memset(pixels, 0, width * height);
 
+        bool resize = false;
+
         unsigned int x = 0;
         unsigned int y = 0;
         unsigned int my = 0;
 
-        for (unsigned char i = 0; i < 128; i++) {
-            if (!isprint(i)) {
+        for (int i = 0; i < 256; i++) {
+            int index = FT_Get_Char_Index(face, i);
+
+            if (index == 0) {
                 continue;
             }
 
-            if (FT_Load_Char(face, i, FT_LOAD_RENDER)) {
+            if (FT_Load_Glyph(face, index, FT_LOAD_RENDER)) {
                 throw std::runtime_error("failed to load glyph");
             }
 
@@ -715,6 +746,7 @@ private:
             }
 
             if (y + b.rows > height) {
+                resize = true;
                 continue;
             }
 
@@ -727,7 +759,7 @@ private:
                 src += b.width;
             }
 
-            characters_[i] = {(uint16_t)x, (uint16_t)y, (uint8_t)(face->glyph->advance.x >> 6), (uint8_t)b.width, (uint8_t)b.rows, (uint8_t)face->glyph->bitmap_left, (uint8_t)face->glyph->bitmap_top};
+            font.characters_[i] = {(uint16_t)x, (uint16_t)y, (uint8_t)(face->glyph->advance.x >> 6), (uint8_t)b.width, (uint8_t)b.rows, (uint8_t)face->glyph->bitmap_left, (uint8_t)face->glyph->bitmap_top};
 
             x += b.width + 1;
 
@@ -736,12 +768,20 @@ private:
             }
         }
 
-        render_engine_.CreateAlphaTexture(pixels, width, height, font_texture_);
+        render_engine_.CreateAlphaTexture(pixels, width, height, font.font_texture_);
 
         delete[] pixels;
 
         FT_Done_Face(face);
         FT_Done_FreeType(ft);
+
+        if (resize) {
+            throw std::runtime_error("unable to fit the font in the texture");
+        }
+    }
+
+    void DestroyFont(Font& font) {
+        render_engine_.DestroyTexture(font.font_texture_);
     }
 
     std::vector<unsigned char> ReadFile(const std::string& file_name) {

@@ -50,8 +50,9 @@ public:
         CreateDescriptorSets();
     }
 
-    void UpdateDescriptorSet(uint32_t image_index, VkImageView& texture_image_view, VkSampler& texture_sampler) {
+    void UpdateDescriptorSet(uint32_t image_index, std::vector<TextureSampler> textures) {
         std::vector<VkWriteDescriptorSet> descriptor_writes = {};
+        VkDescriptorImageInfo *descriptor_images = new VkDescriptorImageInfo[image_sampler_count_];
 
         uint32_t binding = 0;
 
@@ -75,10 +76,10 @@ public:
         }
 
         for (uint32_t index = 0; index < image_sampler_count_; index++) {
-            VkDescriptorImageInfo image_info{};
-            image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            image_info.imageView = texture_image_view;
-            image_info.sampler = texture_sampler;
+            descriptor_images[index] = {};
+            descriptor_images[index].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            descriptor_images[index].imageView = textures[index].texture_image_view_;
+            descriptor_images[index].sampler = textures[index].texture_sampler_;
 
             VkWriteDescriptorSet descriptor_set{};
             descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -87,11 +88,20 @@ public:
             descriptor_set.dstArrayElement = 0;
             descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             descriptor_set.descriptorCount = 1;
-            descriptor_set.pImageInfo = &image_info;
+            descriptor_set.pImageInfo = &descriptor_images[index];
             descriptor_writes.push_back(descriptor_set);
         }
 
         vkUpdateDescriptorSets(render_engine_.device_, static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
+
+        delete[] descriptor_images;
+    }
+
+    void UpdateUniformBuffer(uint32_t image_index, void *uniform_buffer) {
+        void* data;
+        vkMapMemory(render_engine_.device_, uniform_buffers_memory_[image_index], 0, uniform_buffer_size_, 0, &data);
+        memcpy(data, uniform_buffer, uniform_buffer_size_);
+        vkUnmapMemory(render_engine_.device_, uniform_buffers_memory_[image_index]);
     }
 
 private:
