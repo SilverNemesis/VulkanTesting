@@ -417,6 +417,8 @@ private:
         uniform_buffer_.model = glm::rotate(uniform_buffer_.model, total_time * glm::radians(30.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         uniform_buffer_.view = view_matrix;
         uniform_buffer_.proj = projection_matrix;
+#elif MODE == 2
+#elif MODE == 3
 #else
         float offset_1 = std::sin(total_time);
         float offset_2 = std::cos(total_time);
@@ -475,7 +477,7 @@ private:
 
 #if MODE == 1
         RenderPipeline& render_pipeline = render_pipeline_;
-        VkDescriptorSet& descriptor_set = render_pipeline.descriptor_sets_[image_index];
+        const VkDescriptorSet& descriptor_set = render_pipeline.GetDescriptorSet(image_index);
 
         render_pipeline.UpdateUniformBuffer(image_index, &uniform_buffer_);
 
@@ -488,7 +490,7 @@ private:
         vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], primitive_.index_count_, 1, 0, 0, 0);
 #elif MODE == 2
         RenderPipeline& render_pipeline = render_pipeline_sprite_;
-        VkDescriptorSet& descriptor_set = render_pipeline.descriptor_sets_[image_index];
+        const VkDescriptorSet& descriptor_set = render_pipeline.GetDescriptorSet(image_index);
 
         vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.graphics_pipeline_);
         if (sprite_primitive_.index_count_ > 0) {
@@ -501,7 +503,7 @@ private:
         }
 #elif MODE == 3
         RenderPipeline& render_pipeline = render_pipeline_text_;
-        VkDescriptorSet& descriptor_set = render_pipeline.descriptor_sets_[image_index];
+        const VkDescriptorSet& descriptor_set = render_pipeline.GetDescriptorSet(image_index);
 
         vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.graphics_pipeline_);
         if (font_primitive_.index_count_ > 0) {
@@ -516,7 +518,7 @@ private:
 
         {
             RenderPipeline& render_pipeline = render_pipeline_color_;
-            VkDescriptorSet& descriptor_set = render_pipeline.descriptor_sets_[image_index];
+            const VkDescriptorSet& descriptor_set = render_pipeline.GetDescriptorSet(image_index);
 
             render_pipeline.UpdateUniformBuffer(image_index, &uniform_buffer_1_);
 
@@ -533,7 +535,7 @@ private:
 
         {
             RenderPipeline& render_pipeline = render_pipeline_texture_;
-            VkDescriptorSet& descriptor_set = render_pipeline.descriptor_sets_[image_index];
+            const VkDescriptorSet& descriptor_set = render_pipeline.GetDescriptorSet(image_index);
 
             render_pipeline.UpdateUniformBuffer(image_index, &uniform_buffer_2_);
 

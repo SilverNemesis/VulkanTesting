@@ -9,10 +9,6 @@ public:
     VkPipelineLayout pipeline_layout_{};
     VkPipeline graphics_pipeline_{};
 
-    std::vector<VkBuffer> uniform_buffers_{};
-    std::vector<VkDeviceMemory> uniform_buffers_memory_{};
-    std::vector<VkDescriptorSet> descriptor_sets_{};
-
     RenderPipeline(RenderEngine& render_engine, VkVertexInputBindingDescription binding_description, std::vector<VkVertexInputAttributeDescription> attribute_descriptions, uint32_t subpass) :
         render_engine_(render_engine), binding_description_(binding_description), attribute_descriptions_(attribute_descriptions), subpass_(subpass) {
     }
@@ -104,6 +100,10 @@ public:
         vkUnmapMemory(render_engine_.device_, uniform_buffers_memory_[image_index]);
     }
 
+    const VkDescriptorSet GetDescriptorSet(uint32_t image_index) {
+        return descriptor_sets_[image_index];
+    }
+
 private:
     RenderEngine& render_engine_;
     VkVertexInputBindingDescription binding_description_;
@@ -115,6 +115,9 @@ private:
     size_t uniform_buffer_size_{};
     VkDescriptorPool descriptor_pool_{};
     VkDescriptorSetLayout descriptor_set_layout_{};
+    std::vector<VkBuffer> uniform_buffers_{};
+    std::vector<VkDeviceMemory> uniform_buffers_memory_{};
+    std::vector<VkDescriptorSet> descriptor_sets_{};
     bool use_alpha_ = false;
 
     void CreateDescriptorSetLayout() {
