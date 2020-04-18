@@ -1,0 +1,10 @@
+La police de charactère Katakana prend en compte le
+syllabaire japonais de base, servant à retranscrire
+les mots d'origine étrangère
+Comme il prend en compte les syllabes disparues, il est donc complet
+
+Cette fonte ainsi que d'autres a été réalisé dans le
+cadre de notre fanzine "Capsule Inc." 
+
+Retrouvez-nous sur:
+http://nagumo84.free.fr/capsule-inc/
