@@ -37,6 +37,7 @@
 #include "Geometry_Text.h"
 
 #define MODE                        0       // 0 = cubes, 1 = model, 2 = sprites, 3 = text
+#define DIAG                        0       // 0 = none, 1 = timing
 
 #if MODE == 1
 static const char* MODEL_PATH = "models/chalet.obj";
@@ -48,6 +49,8 @@ static const char* SPRITE_PATH = "textures/texture.jpg";
 static const int MAX_FRAMES_IN_FLIGHT = 2;
 
 struct Font {
+    float size;
+
     TextureSampler font_texture_;
 
     struct Character {
@@ -80,6 +83,18 @@ public:
         }
 
         render_engine_.Initialize(this);
+
+#if DIAG == 1
+        VkQueryPoolCreateInfo createInfo = {};
+        createInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+        createInfo.pNext = nullptr;
+        createInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
+        createInfo.queryCount = 2;
+
+        if (vkCreateQueryPool(render_engine_.device_, &createInfo, nullptr, &query_pool_) != VK_SUCCESS) {
+            throw std::runtime_error("unable to create query pool");
+        }
+#endif
 
 #if MODE == 1
         {
@@ -116,7 +131,7 @@ public:
         {
             std::vector<glm::vec2> vertices{};
             std::vector<std::vector<uint32_t>> faces{};
-            Geometry2D::CreateSquare(vertices, faces);
+            Geometry2D::CreateSquare(0.35f, vertices, faces);
 
             std::vector<glm::vec2> texture_coordinates = {
                 {0, 0},
@@ -145,13 +160,6 @@ public:
         render_pipeline_text_.UpdateDescriptorSets(0, {font_1_.font_texture_});
         render_pipeline_text_.UpdateDescriptorSets(1, {font_2_.font_texture_});
 
-        Geometry_Text geometry_text{};
-        //RenderText("Hello world!", 0, 0, {1.0, 1.0, 1.0}, geometry_text);
-
-        std::vector<glm::vec2> vertices{};
-        std::vector<std::vector<uint32_t>> faces{};
-        Geometry2D::CreateSquare(vertices, faces);
-
         std::vector<glm::vec2> texture_coordinates = {
             {0, 1},
             {1, 1},
@@ -159,21 +167,18 @@ public:
             {0, 0}
         };
 
-        geometry_text.AddFaces(vertices, faces, texture_coordinates, glm::vec3{0, 1, 0});
+        std::vector<glm::vec2> vertices{};
+        std::vector<std::vector<uint32_t>> faces{};
 
-        for (auto& vertex : geometry_text.vertices) {
-            vertex.pos.x -= 0.4f;
-            vertex.pos.y += 0.2f;
-        }
+        const char* text = "Hello world!";
 
-        render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text.vertices, geometry_text.indices, font_primitive_1_);
+        Geometry_Text geometry_text_1{};
+        RenderText(font_1_, text, -GetTextLength(font_1_, text) - 10, 0, {1.0, 1.0, 1.0}, geometry_text_1);
+        render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text_1.vertices, geometry_text_1.indices, font_primitive_1_);
 
-        for (auto& vertex : geometry_text.vertices) {
-            vertex.pos.x += 0.8f;
-            vertex.pos.y -= 0.4f;
-        }
-
-        render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text.vertices, geometry_text.indices, font_primitive_2_);
+        Geometry_Text geometry_text_2{};
+        RenderText(font_2_, text, 10, 0, {1.0, 1.0, 1.0}, geometry_text_2);
+        render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text_2.vertices, geometry_text_2.indices, font_primitive_2_);
 #else
         {
             std::vector<unsigned char> byte_code{};
@@ -240,6 +245,9 @@ public:
     void Shutdown() {
         SDL_Log("application shutdown");
         vkDeviceWaitIdle(render_engine_.device_);
+#if DIAG == 1
+        vkDestroyQueryPool(render_engine_.device_, query_pool_, NULL);
+#endif
 #if MODE == 1
         render_pipeline_.Destroy();
         render_engine_.DestroyIndexedPrimitive(primitive_);
@@ -279,6 +287,10 @@ private:
     glm::vec3 camera_up_{0.0f, -1.0f, 0.0f};
     float camera_yaw_ = 0.0;
     float camera_pitch_ = 0.0;
+
+#if DIAG == 1
+    VkQueryPool query_pool_{};
+#endif
 
 #if MODE == 1
     RenderEngine render_engine_{1, MAX_FRAMES_IN_FLIGHT};
@@ -459,14 +471,23 @@ private:
             return;
         }
 
-        //auto beg_time = std::chrono::high_resolution_clock::now();
+#if DIAG == 1
+        auto beg_time = std::chrono::high_resolution_clock::now();
+#endif
+
+        VkCommandBuffer& command_buffer = render_engine_.command_buffers_[image_index];
 
         VkCommandBufferBeginInfo begin_info = {};
         begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-        if (vkBeginCommandBuffer(render_engine_.command_buffers_[image_index], &begin_info) != VK_SUCCESS) {
+        if (vkBeginCommandBuffer(command_buffer, &begin_info) != VK_SUCCESS) {
             throw std::runtime_error("failed to begin recording command buffer");
         }
+
+#if DIAG == 1
+        vkCmdResetQueryPool(command_buffer, query_pool_, 0, 2);
+        vkCmdWriteTimestamp(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, query_pool_, 0);
+#endif
 
         VkRenderPassBeginInfo render_pass_info = {};
         render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -482,7 +503,7 @@ private:
         render_pass_info.clearValueCount = static_cast<uint32_t>(clear_values.size());
         render_pass_info.pClearValues = clear_values.data();
 
-        vkCmdBeginRenderPass(render_engine_.command_buffers_[image_index], &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBeginRenderPass(command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
 
 #if MODE == 1
         RenderPipeline& render_pipeline = render_pipeline_;
@@ -490,46 +511,46 @@ private:
 
         render_pipeline.UpdateUniformBuffer(image_index, 0, &uniform_buffer_);
 
-        vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.graphics_pipeline_);
+        vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.graphics_pipeline_);
         VkBuffer vertex_buffers_1[] = {primitive_.vertex_buffer_};
         VkDeviceSize offsets_1[] = {0};
-        vkCmdBindVertexBuffers(render_engine_.command_buffers_[image_index], 0, 1, vertex_buffers_1, offsets_1);
-        vkCmdBindIndexBuffer(render_engine_.command_buffers_[image_index], primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set, 0, nullptr);
-        vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], primitive_.index_count_, 1, 0, 0, 0);
+        vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers_1, offsets_1);
+        vkCmdBindIndexBuffer(command_buffer, primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set, 0, nullptr);
+        vkCmdDrawIndexed(command_buffer, primitive_.index_count_, 1, 0, 0, 0);
 #elif MODE == 2
         RenderPipeline& render_pipeline = render_pipeline_sprite_;
         const VkDescriptorSet& descriptor_set = render_pipeline.GetDescriptorSet(image_index, 0);
 
-        vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.graphics_pipeline_);
+        vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.graphics_pipeline_);
         if (sprite_primitive_.index_count_ > 0) {
             VkBuffer vertex_buffers_1[] = {sprite_primitive_.vertex_buffer_};
             VkDeviceSize offsets_1[] = {0};
-            vkCmdBindVertexBuffers(render_engine_.command_buffers_[image_index], 0, 1, vertex_buffers_1, offsets_1);
-            vkCmdBindIndexBuffer(render_engine_.command_buffers_[image_index], sprite_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-            vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set, 0, nullptr);
-            vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], sprite_primitive_.index_count_, 1, 0, 0, 0);
+            vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers_1, offsets_1);
+            vkCmdBindIndexBuffer(command_buffer, sprite_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
+            vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set, 0, nullptr);
+            vkCmdDrawIndexed(command_buffer, sprite_primitive_.index_count_, 1, 0, 0, 0);
         }
 #elif MODE == 3
         RenderPipeline& render_pipeline = render_pipeline_text_;
         const VkDescriptorSet& descriptor_set_1 = render_pipeline.GetDescriptorSet(image_index, 0);
         const VkDescriptorSet& descriptor_set_2 = render_pipeline.GetDescriptorSet(image_index, 1);
 
-        vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.graphics_pipeline_);
+        vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.graphics_pipeline_);
 
         VkBuffer vertex_buffers_1[] = {font_primitive_1_.vertex_buffer_};
         VkDeviceSize offsets_1[] = {0};
-        vkCmdBindVertexBuffers(render_engine_.command_buffers_[image_index], 0, 1, vertex_buffers_1, offsets_1);
-        vkCmdBindIndexBuffer(render_engine_.command_buffers_[image_index], font_primitive_1_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set_1, 0, nullptr);
-        vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], font_primitive_1_.index_count_, 1, 0, 0, 0);
+        vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers_1, offsets_1);
+        vkCmdBindIndexBuffer(command_buffer, font_primitive_1_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set_1, 0, nullptr);
+        vkCmdDrawIndexed(command_buffer, font_primitive_1_.index_count_, 1, 0, 0, 0);
 
         VkBuffer vertex_buffers_2[] = {font_primitive_2_.vertex_buffer_};
         VkDeviceSize offsets_2[] = {0};
-        vkCmdBindVertexBuffers(render_engine_.command_buffers_[image_index], 0, 1, vertex_buffers_2, offsets_2);
-        vkCmdBindIndexBuffer(render_engine_.command_buffers_[image_index], font_primitive_2_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set_2, 0, nullptr);
-        vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], font_primitive_2_.index_count_, 1, 0, 0, 0);
+        vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers_2, offsets_2);
+        vkCmdBindIndexBuffer(command_buffer, font_primitive_2_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set_2, 0, nullptr);
+        vkCmdDrawIndexed(command_buffer, font_primitive_2_.index_count_, 1, 0, 0, 0);
 #else
 
         {
@@ -538,16 +559,16 @@ private:
 
             render_pipeline.UpdateUniformBuffer(image_index, 0, &uniform_buffer_1_);
 
-            vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.graphics_pipeline_);
+            vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.graphics_pipeline_);
             VkBuffer vertex_buffers_1[] = {color_primitive_.vertex_buffer_};
             VkDeviceSize offsets_1[] = {0};
-            vkCmdBindVertexBuffers(render_engine_.command_buffers_[image_index], 0, 1, vertex_buffers_1, offsets_1);
-            vkCmdBindIndexBuffer(render_engine_.command_buffers_[image_index], color_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-            vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set, 0, nullptr);
-            vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], color_primitive_.index_count_, 1, 0, 0, 0);
+            vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers_1, offsets_1);
+            vkCmdBindIndexBuffer(command_buffer, color_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
+            vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set, 0, nullptr);
+            vkCmdDrawIndexed(command_buffer, color_primitive_.index_count_, 1, 0, 0, 0);
         }
 
-        vkCmdNextSubpass(render_engine_.command_buffers_[image_index], VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdNextSubpass(command_buffer, VK_SUBPASS_CONTENTS_INLINE);
 
         {
             RenderPipeline& render_pipeline = render_pipeline_texture_;
@@ -555,27 +576,38 @@ private:
 
             render_pipeline.UpdateUniformBuffer(image_index, 0, &uniform_buffer_2_);
 
-            vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.graphics_pipeline_);
+            vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.graphics_pipeline_);
             VkBuffer vertex_buffers_2[] = {texture_primitive_.vertex_buffer_};
             VkDeviceSize offsets_2[] = {0};
-            vkCmdBindVertexBuffers(render_engine_.command_buffers_[image_index], 0, 1, vertex_buffers_2, offsets_2);
-            vkCmdBindIndexBuffer(render_engine_.command_buffers_[image_index], texture_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-            vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set, 0, nullptr);
-            vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], texture_primitive_.index_count_, 1, 0, 0, 0);
+            vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers_2, offsets_2);
+            vkCmdBindIndexBuffer(command_buffer, texture_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
+            vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set, 0, nullptr);
+            vkCmdDrawIndexed(command_buffer, texture_primitive_.index_count_, 1, 0, 0, 0);
         }
 #endif
 
-        vkCmdEndRenderPass(render_engine_.command_buffers_[image_index]);
+#if DIAG == 1
+        vkCmdWriteTimestamp(command_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, query_pool_, 1);
+#endif
+        vkCmdEndRenderPass(command_buffer);
 
-        if (vkEndCommandBuffer(render_engine_.command_buffers_[image_index]) != VK_SUCCESS) {
+        if (vkEndCommandBuffer(command_buffer) != VK_SUCCESS) {
             throw std::runtime_error("failed to record command buffer");
         }
 
-        //auto end_time = std::chrono::high_resolution_clock::now();
-        //auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - beg_time).count();
-        //RenderDevice::Log("%lld", duration);
-
         render_engine_.SubmitDrawCommands(image_index);
+
+#if DIAG == 1
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - beg_time).count();
+
+        uint64_t time_stamp[2] = {0, 0};
+        if (vkGetQueryPoolResults(render_engine_.device_, query_pool_, 0, 2, sizeof(uint64_t) * 2, time_stamp, sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT) != VK_SUCCESS) {
+            throw std::runtime_error("unable to get query results");
+        }
+
+        SDL_Log("%8lld %8lld", duration, static_cast<long long>((time_stamp[1] - time_stamp[0]) * render_engine_.timestamp_period_ / 1000.0f));
+#endif
 
         render_engine_.PresentImage(image_index);
     }
@@ -677,7 +709,7 @@ private:
         }
     }
 
-    void RenderText(Font font, const char* text, int x, int y, glm::vec3 color, Geometry_Text& geometry) {
+    void RenderText(Font& font, const char* text, int x, int y, glm::vec3 color, Geometry_Text& geometry) {
         float xscale = 1.0f / window_width_;
         float yscale = 1.0f / window_height_;
 
@@ -698,10 +730,10 @@ private:
                 {l, t}
             };
 
-            l = static_cast<float>(ch.x) / 512.0f;
-            r = static_cast<float>(ch.x + ch.w) / 512.0f;
-            t = static_cast<float>(ch.y) / 512.0f;
-            b = static_cast<float>(ch.y + ch.h) / 512.0f;
+            l = static_cast<float>(ch.x) / font.size;
+            r = static_cast<float>(ch.x + ch.w) / font.size;
+            t = static_cast<float>(ch.y) / font.size;
+            b = static_cast<float>(ch.y + ch.h) / font.size;
 
             std::vector<glm::vec2> texture_coords = {
                 {l, b},
@@ -716,7 +748,16 @@ private:
         }
     }
 
-    void LoadFont(const char* file_name, uint32_t size, Font& font) {
+    int32_t GetTextLength(Font& font, const char* text) {
+        int32_t size = 0;
+        for (const char* cur = text; *cur != 0; cur++) {
+            Font::Character ch = font.characters_[*cur];
+            size += ch.a;
+        }
+        return size;
+    }
+
+    void LoadFont(const char* file_name, uint32_t font_size, Font& font) {
         FT_Library ft;
         if (FT_Init_FreeType(&ft)) {
             throw std::runtime_error("unable to initialize font library");
@@ -727,70 +768,77 @@ private:
             throw std::runtime_error("unable to load font");
         }
 
-        FT_Set_Pixel_Sizes(face, 0, size);
+        FT_Set_Pixel_Sizes(face, 0, font_size);
 
-        unsigned int width = 512;
-        unsigned int height = 512;
-        unsigned char* pixels = new unsigned char[width * height];
-        memset(pixels, 0, width * height);
+        uint32_t size;
 
-        bool resize = false;
+        for (size = 128; size < 4096; size *= 2) {
+            uint32_t width = size;
+            uint32_t height = size;
+            unsigned char* pixels = new unsigned char[width * height];
+            memset(pixels, 0, width * height);
 
-        unsigned int x = 0;
-        unsigned int y = 0;
-        unsigned int my = 0;
+            bool resize = false;
 
-        for (int i = 0; i < 256; i++) {
-            int index = FT_Get_Char_Index(face, i);
+            uint32_t x = 0;
+            uint32_t y = 0;
+            uint32_t my = 0;
 
-            if (index == 0) {
-                continue;
+            for (int i = 0; i < 256; i++) {
+                int index = FT_Get_Char_Index(face, i);
+
+                if (index == 0) {
+                    continue;
+                }
+
+                if (FT_Load_Glyph(face, index, FT_LOAD_RENDER)) {
+                    throw std::runtime_error("failed to load glyph");
+                }
+
+                FT_Bitmap b = face->glyph->bitmap;
+
+                if (x + b.width > width) {
+                    x = 0;
+                    y = my + 1;
+                }
+
+                if (y + b.rows > height) {
+                    resize = true;
+                    continue;
+                }
+
+                unsigned char* src = b.buffer;
+                unsigned char* dst = pixels + y * width + x;
+
+                for (uint32_t r = 0; r < b.rows; r++) {
+                    memcpy(dst, src, b.width);
+                    dst += width;
+                    src += b.width;
+                }
+
+                font.characters_[i] = {(uint16_t)x, (uint16_t)y, (uint8_t)(face->glyph->advance.x >> 6), (uint8_t)b.width, (uint8_t)b.rows, (uint8_t)face->glyph->bitmap_left, (uint8_t)face->glyph->bitmap_top};
+
+                x += b.width + 1;
+
+                if (y + b.rows > my) {
+                    my = y + b.rows;
+                }
             }
 
-            if (FT_Load_Glyph(face, index, FT_LOAD_RENDER)) {
-                throw std::runtime_error("failed to load glyph");
+            if (!resize) {
+                render_engine_.CreateAlphaTexture(pixels, width, height, font.font_texture_);
+                delete[] pixels;
+                break;
             }
 
-            FT_Bitmap b = face->glyph->bitmap;
-
-            if (x + b.width > width) {
-                x = 0;
-                y = my + 1;
-            }
-
-            if (y + b.rows > height) {
-                resize = true;
-                continue;
-            }
-
-            unsigned char* src = b.buffer;
-            unsigned char* dst = pixels + y * width + x;
-
-            for (unsigned int r = 0; r < b.rows; r++) {
-                memcpy(dst, src, b.width);
-                dst += width;
-                src += b.width;
-            }
-
-            font.characters_[i] = {(uint16_t)x, (uint16_t)y, (uint8_t)(face->glyph->advance.x >> 6), (uint8_t)b.width, (uint8_t)b.rows, (uint8_t)face->glyph->bitmap_left, (uint8_t)face->glyph->bitmap_top};
-
-            x += b.width + 1;
-
-            if (y + b.rows > my) {
-                my = y + b.rows;
-            }
+            font.characters_.clear();
+            delete[] pixels;
         }
-
-        render_engine_.CreateAlphaTexture(pixels, width, height, font.font_texture_);
-
-        delete[] pixels;
 
         FT_Done_Face(face);
         FT_Done_FreeType(ft);
 
-        if (resize) {
-            throw std::runtime_error("unable to fit the font in the texture");
-        }
+        font.size = static_cast<float>(size);
     }
 
     void DestroyFont(Font& font) {
@@ -833,7 +881,7 @@ int main(int argc, char* argv[]) {
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Run-Time Error", exception.what(), nullptr);
 #endif
         return EXIT_FAILURE;
-}
+    }
 
     return EXIT_SUCCESS;
 }

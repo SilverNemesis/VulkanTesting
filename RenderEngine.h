@@ -38,6 +38,7 @@ public:
     static void (*Log)(const char* format, ...);
 
     VkSampleCountFlagBits msaa_samples_ = VK_SAMPLE_COUNT_1_BIT;
+    float timestamp_period_{};
     VkDevice device_ = nullptr;
     uint32_t image_count_ = 0;
     VkExtent2D swapchain_extent_{};
@@ -582,6 +583,7 @@ private:
     VkSampleCountFlagBits GetMaxUsableSampleCount() {
         VkPhysicalDeviceProperties physical_device_properties;
         vkGetPhysicalDeviceProperties(physical_device_, &physical_device_properties);
+        timestamp_period_ = physical_device_properties.limits.timestampPeriod;
 
         VkSampleCountFlags counts = physical_device_properties.limits.framebufferColorSampleCounts & physical_device_properties.limits.framebufferDepthSampleCounts;
         if (counts & VK_SAMPLE_COUNT_64_BIT) { return VK_SAMPLE_COUNT_64_BIT; }
@@ -740,11 +742,11 @@ private:
     }
 
     VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR>& available_present_modes) {
-        for (const auto& available_present_mode : available_present_modes) {
-            if (available_present_mode == VK_PRESENT_MODE_MAILBOX_KHR) {
-                return available_present_mode;
-            }
-        }
+        //for (const auto& available_present_mode : available_present_modes) {
+        //    if (available_present_mode == VK_PRESENT_MODE_MAILBOX_KHR) {
+        //        return available_present_mode;
+        //    }
+        //}
 
         return VK_PRESENT_MODE_FIFO_KHR;
     }
