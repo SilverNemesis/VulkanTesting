@@ -31,14 +31,14 @@
     <Filter Include="fonts">
       <UniqueIdentifier>{fcde1983-0ef3-4a30-b7b3-da2da656a605}</UniqueIdentifier>
     </Filter>
-    <Filter Include="fonts\open-sans">
-      <UniqueIdentifier>{25decb81-09e6-4766-a0fe-5226a2f02c3d}</UniqueIdentifier>
-    </Filter>
     <Filter Include="shaders\text">
       <UniqueIdentifier>{eab54361-23ec-45af-9123-d30786941e4a}</UniqueIdentifier>
     </Filter>
     <Filter Include="fonts\katakana">
       <UniqueIdentifier>{e83f7f34-43c9-4406-b95f-e426cc5920bb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="fonts\Inconsolata">
+      <UniqueIdentifier>{531d9c4d-46a3-4689-94d6-8bc4a907fe06}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -74,11 +74,11 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <Font Include="fonts\open-sans\OpenSans-Regular.ttf">
-      <Filter>fonts\open-sans</Filter>
-    </Font>
     <Font Include="fonts\katakana\katakana.ttf">
       <Filter>fonts\katakana</Filter>
+    </Font>
+    <Font Include="fonts\Inconsolata\Inconsolata-Regular.ttf">
+      <Filter>fonts\Inconsolata</Filter>
     </Font>
   </ItemGroup>
 </Project>
