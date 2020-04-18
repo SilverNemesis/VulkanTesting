@@ -13,12 +13,13 @@ public:
         render_engine_(render_engine), binding_description_(binding_description), attribute_descriptions_(attribute_descriptions), subpass_(subpass) {
     }
 
-    void Initialize(VkShaderModule& vertex_shader_module, VkShaderModule& fragment_shader_module, size_t uniform_buffer_size, uint32_t image_sampler_count, bool use_alpha) {
-        this->vertex_shader_module_ = vertex_shader_module;
-        this->fragment_shader_module_ = fragment_shader_module;
-        this->uniform_buffer_size_ = uniform_buffer_size;
-        this->image_sampler_count_ = image_sampler_count;
-        this->use_alpha_ = use_alpha;
+    void Initialize(VkShaderModule& vertex_shader_module, VkShaderModule& fragment_shader_module, size_t uniform_buffer_size, uint32_t image_sampler_count, uint32_t descriptor_set_count, bool use_alpha) {
+        vertex_shader_module_ = vertex_shader_module;
+        fragment_shader_module_ = fragment_shader_module;
+        uniform_buffer_size_ = static_cast<uint32_t>(uniform_buffer_size);
+        image_sampler_count_ = image_sampler_count;
+        descriptor_set_count_ = descriptor_set_count;
+        use_alpha_ = use_alpha;
         CreateUniformBuffers();
         CreateDescriptorSetLayout();
         Rebuild();
@@ -46,20 +47,26 @@ public:
         CreateDescriptorSets();
     }
 
-    void UpdateDescriptorSet(uint32_t image_index, std::vector<TextureSampler> textures) {
+    void UpdateDescriptorSets(uint32_t descriptor_set_index, std::vector<TextureSampler> textures) {
+        for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
+            UpdateDescriptorSet(image_index, descriptor_set_index, textures);
+        }
+    }
+
+    void UpdateDescriptorSet(uint32_t image_index, uint32_t descriptor_set_index, std::vector<TextureSampler> textures) {
         std::vector<VkWriteDescriptorSet> descriptor_writes = {};
-        VkDescriptorImageInfo *descriptor_images = new VkDescriptorImageInfo[image_sampler_count_];
+        VkDescriptorImageInfo* descriptor_images = new VkDescriptorImageInfo[image_sampler_count_];
 
         uint32_t binding = 0;
 
         VkDescriptorBufferInfo buffer_info{};
-        buffer_info.buffer = uniform_buffers_[image_index];
+        buffer_info.buffer = uniform_buffers_[image_index * descriptor_set_count_ + descriptor_set_index];
         buffer_info.offset = 0;
         buffer_info.range = uniform_buffer_size_;
 
         VkWriteDescriptorSet descriptor_set{};
         descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptor_set.dstSet = descriptor_sets_[image_index];
+        descriptor_set.dstSet = descriptor_sets_[image_index * descriptor_set_count_ + descriptor_set_index];
         descriptor_set.dstBinding = binding;
         descriptor_set.dstArrayElement = 0;
         descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -79,7 +86,7 @@ public:
 
             VkWriteDescriptorSet descriptor_set{};
             descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptor_set.dstSet = descriptor_sets_[image_index];
+            descriptor_set.dstSet = descriptor_sets_[image_index * descriptor_set_count_ + descriptor_set_index];
             descriptor_set.dstBinding = binding++;
             descriptor_set.dstArrayElement = 0;
             descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -93,15 +100,15 @@ public:
         delete[] descriptor_images;
     }
 
-    void UpdateUniformBuffer(uint32_t image_index, void *uniform_buffer) {
+    void UpdateUniformBuffer(uint32_t image_index, uint32_t descriptor_set_index, void* uniform_buffer) {
         void* data;
-        vkMapMemory(render_engine_.device_, uniform_buffers_memory_[image_index], 0, uniform_buffer_size_, 0, &data);
+        vkMapMemory(render_engine_.device_, uniform_buffers_memory_[image_index * descriptor_set_count_ + descriptor_set_index], 0, uniform_buffer_size_, 0, &data);
         memcpy(data, uniform_buffer, uniform_buffer_size_);
-        vkUnmapMemory(render_engine_.device_, uniform_buffers_memory_[image_index]);
+        vkUnmapMemory(render_engine_.device_, uniform_buffers_memory_[image_index * descriptor_set_count_ + descriptor_set_index]);
     }
 
-    const VkDescriptorSet GetDescriptorSet(uint32_t image_index) {
-        return descriptor_sets_[image_index];
+    const VkDescriptorSet GetDescriptorSet(uint32_t image_index, uint32_t descriptor_set_index) {
+        return descriptor_sets_[image_index * descriptor_set_count_ + descriptor_set_index];
     }
 
 private:
@@ -112,12 +119,13 @@ private:
     uint32_t image_sampler_count_{};
     VkShaderModule vertex_shader_module_{};
     VkShaderModule fragment_shader_module_{};
-    size_t uniform_buffer_size_{};
+    uint32_t descriptor_set_count_{};
     VkDescriptorPool descriptor_pool_{};
     VkDescriptorSetLayout descriptor_set_layout_{};
+    std::vector<VkDescriptorSet> descriptor_sets_{};
+    uint32_t uniform_buffer_size_{};
     std::vector<VkBuffer> uniform_buffers_{};
     std::vector<VkDeviceMemory> uniform_buffers_memory_{};
-    std::vector<VkDescriptorSet> descriptor_sets_{};
     bool use_alpha_ = false;
 
     void CreateDescriptorSetLayout() {
@@ -161,14 +169,14 @@ private:
         if (uniform_buffer_size_ > 0) {
             VkDescriptorPoolSize pool_size{};
             pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            pool_size.descriptorCount = static_cast<uint32_t>(render_engine_.image_count_);
+            pool_size.descriptorCount = static_cast<uint32_t>(render_engine_.image_count_ * descriptor_set_count_);
             pool_sizes.push_back(pool_size);
         }
 
         for (uint32_t index = 0; index < image_sampler_count_; index++) {
             VkDescriptorPoolSize pool_size{};
             pool_size.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            pool_size.descriptorCount = static_cast<uint32_t>(render_engine_.image_count_);
+            pool_size.descriptorCount = static_cast<uint32_t>(render_engine_.image_count_ * descriptor_set_count_);
             pool_sizes.push_back(pool_size);
         }
 
@@ -176,7 +184,7 @@ private:
         pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         pool_info.poolSizeCount = static_cast<uint32_t>(pool_sizes.size());
         pool_info.pPoolSizes = pool_sizes.data();
-        pool_info.maxSets = static_cast<uint32_t>(render_engine_.image_count_);
+        pool_info.maxSets = static_cast<uint32_t>(render_engine_.image_count_ * descriptor_set_count_);
 
         if (vkCreateDescriptorPool(render_engine_.device_, &pool_info, nullptr, &descriptor_pool_) != VK_SUCCESS) {
             throw std::runtime_error("failed to create descriptor pool");
@@ -184,15 +192,15 @@ private:
     }
 
     void CreateDescriptorSets() {
-        std::vector<VkDescriptorSetLayout> layouts(render_engine_.image_count_, descriptor_set_layout_);
+        std::vector<VkDescriptorSetLayout> layouts(render_engine_.image_count_ * descriptor_set_count_, descriptor_set_layout_);
 
         VkDescriptorSetAllocateInfo allocate_info = {};
         allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         allocate_info.descriptorPool = descriptor_pool_;
-        allocate_info.descriptorSetCount = static_cast<uint32_t>(render_engine_.image_count_);
+        allocate_info.descriptorSetCount = static_cast<uint32_t>(render_engine_.image_count_ * descriptor_set_count_);
         allocate_info.pSetLayouts = layouts.data();
 
-        descriptor_sets_.resize(render_engine_.image_count_);
+        descriptor_sets_.resize(render_engine_.image_count_ * descriptor_set_count_);
 
         if (vkAllocateDescriptorSets(render_engine_.device_, &allocate_info, descriptor_sets_.data()) != VK_SUCCESS) {
             throw std::runtime_error("failed to allocate descriptor sets");
@@ -201,11 +209,12 @@ private:
         std::vector<VkWriteDescriptorSet> descriptor_writes = {};
 
         if (image_sampler_count_ == 0 && uniform_buffer_size_ > 0) {
-            for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
-                VkDescriptorBufferInfo buffer_info = {};
-                buffer_info.buffer = uniform_buffers_[image_index];
-                buffer_info.offset = 0;
-                buffer_info.range = uniform_buffer_size_;
+            VkDescriptorBufferInfo* buffer_info = new VkDescriptorBufferInfo[render_engine_.image_count_ * descriptor_set_count_];
+
+            for (uint32_t image_index = 0; image_index < render_engine_.image_count_ * descriptor_set_count_; image_index++) {
+                buffer_info[image_index].buffer = uniform_buffers_[image_index];
+                buffer_info[image_index].offset = 0;
+                buffer_info[image_index].range = uniform_buffer_size_;
 
                 VkWriteDescriptorSet descriptor_set{};
                 descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -214,11 +223,13 @@ private:
                 descriptor_set.dstArrayElement = 0;
                 descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
                 descriptor_set.descriptorCount = 1;
-                descriptor_set.pBufferInfo = &buffer_info;
+                descriptor_set.pBufferInfo = buffer_info + image_index;
                 descriptor_writes.push_back(descriptor_set);
             }
 
             vkUpdateDescriptorSets(render_engine_.device_, static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
+
+            delete[] buffer_info;
         }
     }
 
@@ -304,8 +315,6 @@ private:
             color_blend_attachment.blendEnable = VK_FALSE;
         }
 
-        //glEnable(GL_BLEND);
-        //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         VkPipelineColorBlendStateCreateInfo color_blending = {};
         color_blending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
         color_blending.logicOpEnable = VK_FALSE;
@@ -348,11 +357,11 @@ private:
     }
 
     void CreateUniformBuffers() {
-        uniform_buffers_.resize(render_engine_.image_count_);
-        uniform_buffers_memory_.resize(render_engine_.image_count_);
+        uniform_buffers_.resize(render_engine_.image_count_ * descriptor_set_count_);
+        uniform_buffers_memory_.resize(render_engine_.image_count_ * descriptor_set_count_);
 
         if (uniform_buffer_size_ > 0) {
-            for (size_t i = 0; i < render_engine_.image_count_; i++) {
+            for (size_t i = 0; i < render_engine_.image_count_ * descriptor_set_count_; i++) {
                 render_engine_.CreateBuffer(uniform_buffer_size_, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniform_buffers_[i], uniform_buffers_memory_[i]);
             }
         }

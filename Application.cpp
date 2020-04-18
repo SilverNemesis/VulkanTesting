@@ -88,14 +88,12 @@ public:
             VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = ReadFile("shaders/texture/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 1, false);
+            render_pipeline_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 1, 1, false);
         }
 
         LoadTexture(TEXTURE_PATH, texture_);
 
-        for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
-            render_pipeline_.UpdateDescriptorSet(image_index, {texture_});
-        }
+        render_pipeline_.UpdateDescriptorSets(0, {texture_});
 
         std::vector<Vertex_Texture> vertices;
         std::vector<uint32_t> indices;
@@ -108,14 +106,12 @@ public:
             VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = ReadFile("shaders/ortho2d/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_sprite_.Initialize(vertex_shader_module, fragment_shader_module, 0, 1, false);
+            render_pipeline_sprite_.Initialize(vertex_shader_module, fragment_shader_module, 0, 1, 1, false);
         }
 
         LoadTexture(SPRITE_PATH, sprite_texture_);
 
-        for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
-            render_pipeline_sprite_.UpdateDescriptorSet(image_index, {sprite_texture_});
-        }
+        render_pipeline_sprite_.UpdateDescriptorSets(0, {sprite_texture_});
 
         {
             std::vector<glm::vec2> vertices{};
@@ -140,15 +136,14 @@ public:
             VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = ReadFile("shaders/text/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_text_.Initialize(vertex_shader_module, fragment_shader_module, 0, 2, true);
+            render_pipeline_text_.Initialize(vertex_shader_module, fragment_shader_module, 0, 1, 2, true);
         }
 
-        LoadFont("fonts/open-sans/OpenSans-Regular.ttf", font_1_);
-        LoadFont("fonts/katakana/katakana.ttf", font_2_);
+        LoadFont("fonts/Inconsolata/Inconsolata-Regular.ttf", 36, font_1_);
+        LoadFont("fonts/katakana/katakana.ttf", 48, font_2_);
 
-        for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
-            render_pipeline_text_.UpdateDescriptorSet(image_index, {font_1_.font_texture_, font_2_.font_texture_});
-        }
+        render_pipeline_text_.UpdateDescriptorSets(0, {font_1_.font_texture_});
+        render_pipeline_text_.UpdateDescriptorSets(1, {font_2_.font_texture_});
 
         Geometry_Text geometry_text{};
         //RenderText("Hello world!", 0, 0, {1.0, 1.0, 1.0}, geometry_text);
@@ -166,7 +161,19 @@ public:
 
         geometry_text.AddFaces(vertices, faces, texture_coordinates, glm::vec3{0, 1, 0});
 
-        render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text.vertices, geometry_text.indices, font_primitive_);
+        for (auto& vertex : geometry_text.vertices) {
+            vertex.pos.x -= 0.4f;
+            vertex.pos.y += 0.2f;
+        }
+
+        render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text.vertices, geometry_text.indices, font_primitive_1_);
+
+        for (auto& vertex : geometry_text.vertices) {
+            vertex.pos.x += 0.8f;
+            vertex.pos.y -= 0.4f;
+        }
+
+        render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text.vertices, geometry_text.indices, font_primitive_2_);
 #else
         {
             std::vector<unsigned char> byte_code{};
@@ -174,7 +181,7 @@ public:
             VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = ReadFile("shaders/color/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_color_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 0, false);
+            render_pipeline_color_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 0, 1, false);
         }
 
         {
@@ -183,7 +190,7 @@ public:
             VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = ReadFile("shaders/notexture/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_texture_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 0, false);
+            render_pipeline_texture_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 0, 1, false);
         }
 
         {
@@ -243,7 +250,8 @@ public:
         render_engine_.DestroyTexture(sprite_texture_);
 #elif MODE == 3
         render_pipeline_text_.Destroy();
-        render_engine_.DestroyIndexedPrimitive(font_primitive_);
+        render_engine_.DestroyIndexedPrimitive(font_primitive_1_);
+        render_engine_.DestroyIndexedPrimitive(font_primitive_2_);
         DestroyFont(font_1_);
         DestroyFont(font_2_);
 #else
@@ -307,7 +315,8 @@ private:
     IndexedPrimitive sprite_primitive_{};
     TextureSampler sprite_texture_;
 #elif MODE == 3
-    IndexedPrimitive font_primitive_{};
+    IndexedPrimitive font_primitive_1_{};
+    IndexedPrimitive font_primitive_2_{};
 #else
     IndexedPrimitive color_primitive_{};
     IndexedPrimitive texture_primitive_{};
@@ -477,9 +486,9 @@ private:
 
 #if MODE == 1
         RenderPipeline& render_pipeline = render_pipeline_;
-        const VkDescriptorSet& descriptor_set = render_pipeline.GetDescriptorSet(image_index);
+        const VkDescriptorSet& descriptor_set = render_pipeline.GetDescriptorSet(image_index, 0);
 
-        render_pipeline.UpdateUniformBuffer(image_index, &uniform_buffer_);
+        render_pipeline.UpdateUniformBuffer(image_index, 0, &uniform_buffer_);
 
         vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.graphics_pipeline_);
         VkBuffer vertex_buffers_1[] = {primitive_.vertex_buffer_};
@@ -490,37 +499,44 @@ private:
         vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], primitive_.index_count_, 1, 0, 0, 0);
 #elif MODE == 2
         RenderPipeline& render_pipeline = render_pipeline_sprite_;
-        const VkDescriptorSet& descriptor_set = render_pipeline.GetDescriptorSet(image_index);
+        const VkDescriptorSet& descriptor_set = render_pipeline.GetDescriptorSet(image_index, 0);
 
         vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.graphics_pipeline_);
         if (sprite_primitive_.index_count_ > 0) {
-            VkBuffer vertex_buffers_3[] = {sprite_primitive_.vertex_buffer_};
-            VkDeviceSize offsets_3[] = {0};
-            vkCmdBindVertexBuffers(render_engine_.command_buffers_[image_index], 0, 1, vertex_buffers_3, offsets_3);
+            VkBuffer vertex_buffers_1[] = {sprite_primitive_.vertex_buffer_};
+            VkDeviceSize offsets_1[] = {0};
+            vkCmdBindVertexBuffers(render_engine_.command_buffers_[image_index], 0, 1, vertex_buffers_1, offsets_1);
             vkCmdBindIndexBuffer(render_engine_.command_buffers_[image_index], sprite_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
             vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set, 0, nullptr);
             vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], sprite_primitive_.index_count_, 1, 0, 0, 0);
         }
 #elif MODE == 3
         RenderPipeline& render_pipeline = render_pipeline_text_;
-        const VkDescriptorSet& descriptor_set = render_pipeline.GetDescriptorSet(image_index);
+        const VkDescriptorSet& descriptor_set_1 = render_pipeline.GetDescriptorSet(image_index, 0);
+        const VkDescriptorSet& descriptor_set_2 = render_pipeline.GetDescriptorSet(image_index, 1);
 
         vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.graphics_pipeline_);
-        if (font_primitive_.index_count_ > 0) {
-            VkBuffer vertex_buffers_3[] = {font_primitive_.vertex_buffer_};
-            VkDeviceSize offsets_3[] = {0};
-            vkCmdBindVertexBuffers(render_engine_.command_buffers_[image_index], 0, 1, vertex_buffers_3, offsets_3);
-            vkCmdBindIndexBuffer(render_engine_.command_buffers_[image_index], font_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-            vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set, 0, nullptr);
-            vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], font_primitive_.index_count_, 1, 0, 0, 0);
-        }
+
+        VkBuffer vertex_buffers_1[] = {font_primitive_1_.vertex_buffer_};
+        VkDeviceSize offsets_1[] = {0};
+        vkCmdBindVertexBuffers(render_engine_.command_buffers_[image_index], 0, 1, vertex_buffers_1, offsets_1);
+        vkCmdBindIndexBuffer(render_engine_.command_buffers_[image_index], font_primitive_1_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set_1, 0, nullptr);
+        vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], font_primitive_1_.index_count_, 1, 0, 0, 0);
+
+        VkBuffer vertex_buffers_2[] = {font_primitive_2_.vertex_buffer_};
+        VkDeviceSize offsets_2[] = {0};
+        vkCmdBindVertexBuffers(render_engine_.command_buffers_[image_index], 0, 1, vertex_buffers_2, offsets_2);
+        vkCmdBindIndexBuffer(render_engine_.command_buffers_[image_index], font_primitive_2_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set_2, 0, nullptr);
+        vkCmdDrawIndexed(render_engine_.command_buffers_[image_index], font_primitive_2_.index_count_, 1, 0, 0, 0);
 #else
 
         {
             RenderPipeline& render_pipeline = render_pipeline_color_;
-            const VkDescriptorSet& descriptor_set = render_pipeline.GetDescriptorSet(image_index);
+            const VkDescriptorSet& descriptor_set = render_pipeline.GetDescriptorSet(image_index, 0);
 
-            render_pipeline.UpdateUniformBuffer(image_index, &uniform_buffer_1_);
+            render_pipeline.UpdateUniformBuffer(image_index, 0, &uniform_buffer_1_);
 
             vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.graphics_pipeline_);
             VkBuffer vertex_buffers_1[] = {color_primitive_.vertex_buffer_};
@@ -535,9 +551,9 @@ private:
 
         {
             RenderPipeline& render_pipeline = render_pipeline_texture_;
-            const VkDescriptorSet& descriptor_set = render_pipeline.GetDescriptorSet(image_index);
+            const VkDescriptorSet& descriptor_set = render_pipeline.GetDescriptorSet(image_index, 0);
 
-            render_pipeline.UpdateUniformBuffer(image_index, &uniform_buffer_2_);
+            render_pipeline.UpdateUniformBuffer(image_index, 0, &uniform_buffer_2_);
 
             vkCmdBindPipeline(render_engine_.command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.graphics_pipeline_);
             VkBuffer vertex_buffers_2[] = {texture_primitive_.vertex_buffer_};
@@ -597,19 +613,14 @@ private:
     void PipelineRebuild() {
 #if MODE == 1
         render_pipeline_.Rebuild();
-        for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
-            render_pipeline_.UpdateDescriptorSet(image_index, {texture_});
-        }
+        render_pipeline_.UpdateDescriptorSets(0, {texture_});
 #elif MODE == 2
         render_pipeline_sprite_.Rebuild();
-        for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
-            render_pipeline_sprite_.UpdateDescriptorSet(image_index, {sprite_texture_});
-        }
+        render_pipeline_sprite_.UpdateDescriptorSets(0, {sprite_texture_});
 #elif MODE == 3
         render_pipeline_text_.Rebuild();
-        for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
-            render_pipeline_text_.UpdateDescriptorSet(image_index, {font_1_.font_texture_, font_2_.font_texture_});
-        }
+        render_pipeline_text_.UpdateDescriptorSets(0, {font_1_.font_texture_});
+        render_pipeline_text_.UpdateDescriptorSets(1, {font_2_.font_texture_});
 #else
         render_pipeline_color_.Rebuild();
         render_pipeline_texture_.Rebuild();
@@ -705,7 +716,7 @@ private:
         }
     }
 
-    void LoadFont(const char *file_name, Font& font) {
+    void LoadFont(const char* file_name, uint32_t size, Font& font) {
         FT_Library ft;
         if (FT_Init_FreeType(&ft)) {
             throw std::runtime_error("unable to initialize font library");
@@ -716,7 +727,7 @@ private:
             throw std::runtime_error("unable to load font");
         }
 
-        FT_Set_Pixel_Sizes(face, 0, 48);
+        FT_Set_Pixel_Sizes(face, 0, size);
 
         unsigned int width = 512;
         unsigned int height = 512;
@@ -822,7 +833,7 @@ int main(int argc, char* argv[]) {
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Run-Time Error", exception.what(), nullptr);
 #endif
         return EXIT_FAILURE;
-    }
+}
 
     return EXIT_SUCCESS;
 }
