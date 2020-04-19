@@ -34,7 +34,7 @@ public:
             VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = Utility::ReadFile("shaders/text/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_text_.Initialize(vertex_shader_module, fragment_shader_module, 0, sizeof(glm::vec3), 1, 2, true);
+            render_pipeline_text_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), sizeof(glm::vec3), 1, 2, true);
         }
 
         LoadFont("fonts/Inconsolata/Inconsolata-Regular.ttf", 36, font_1_);
@@ -56,12 +56,14 @@ public:
         const char* text = "Hello world!";
 
         Geometry_Text geometry_text_1{};
-        RenderText(font_1_, text, -GetTextLength(font_1_, text) - 10, 0, geometry_text_1);
+        RenderText(font_1_, text, 0, 200, geometry_text_1);
         render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text_1.vertices, geometry_text_1.indices, font_primitive_1_);
 
         Geometry_Text geometry_text_2{};
-        RenderText(font_2_, text, 10, 0, geometry_text_2);
+        RenderText(font_2_, text, 0, 400, geometry_text_2);
         render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text_2.vertices, geometry_text_2.indices, font_primitive_2_);
+
+        UpdateProjection();
     }
 
     void Shutdown() {
@@ -158,6 +160,7 @@ public:
         render_pipeline_text_.Rebuild();
         render_pipeline_text_.UpdateDescriptorSets(0, {font_1_.texture});
         render_pipeline_text_.UpdateDescriptorSets(1, {font_2_.texture});
+        UpdateProjection();
     }
 
 private:
@@ -167,11 +170,22 @@ private:
     RenderEngine render_engine_{1};
     RenderPipeline render_pipeline_text_{render_engine_, Vertex_Text::getBindingDescription(), Vertex_Text::getAttributeDescriptions(), 0};
 
+    struct UniformBufferObject {
+        glm::mat4 proj;
+    };
+
+    UniformBufferObject uniform_buffer_{};
+
     Font font_1_{};
     Font font_2_{};
 
     IndexedPrimitive font_primitive_1_{};
     IndexedPrimitive font_primitive_2_{};
+
+    void UpdateProjection() {
+        uniform_buffer_.proj = glm::ortho(0.0f, static_cast<float>(window_width_), static_cast<float>(window_height_), 0.0f);
+        render_pipeline_text_.UpdateUniformBuffers(&uniform_buffer_);
+    }
 
     void LoadTexture(const char* fileName, TextureSampler& texture_sampler) {
         Utility::Image texture;
@@ -183,24 +197,21 @@ private:
     }
 
     void RenderText(Font& font, const char* text, int x, int y, Geometry_Text& geometry) {
-        float xscale = 1.0f / window_width_;
-        float yscale = 1.0f / window_height_;
-
-        std::vector<uint32_t> face = {3, 2, 1, 0};
+        std::vector<uint32_t> face = {0, 1, 2, 3};
 
         for (const char* cur = text; *cur != 0; cur++) {
             Utility::FontCharacter ch = font.characters[*cur];
 
-            float l = static_cast<float>(x + ch.dx) * xscale;
-            float r = static_cast<float>(x + ch.dx + ch.w) * xscale;
-            float t = -static_cast<float>(y - ch.h + ch.dy) * yscale;
-            float b = -static_cast<float>(y + ch.dy) * yscale;
+            float l = static_cast<float>(x + ch.dx);
+            float r = static_cast<float>(x + ch.dx + ch.w);
+            float t = static_cast<float>(y + ch.dy - ch.h);
+            float b = static_cast<float>(y + ch.dy);
 
             std::vector<glm::vec2> vertices = {
-                {l, b},
-                {r, b},
+                {l, t},
                 {r, t},
-                {l, t}
+                {r, b},
+                {l, b}
             };
 
             l = static_cast<float>(ch.x) / font.size;
