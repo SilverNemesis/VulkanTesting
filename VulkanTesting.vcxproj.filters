@@ -2,6 +2,7 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="Application.cpp" />
+    <ClCompile Include="Utility.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="RenderPipeline.h" />
@@ -11,6 +12,11 @@
     <ClInclude Include="RenderEngine.h" />
     <ClInclude Include="Geometry_2D.h" />
     <ClInclude Include="Geometry_Text.h" />
+    <ClInclude Include="CubeApplication.h" />
+    <ClInclude Include="ModelApplication.h" />
+    <ClInclude Include="SpriteApplication.h" />
+    <ClInclude Include="Utility.h" />
+    <ClInclude Include="FontApplication.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="shaders">

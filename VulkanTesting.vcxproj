@@ -147,15 +147,21 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Application.cpp" />
+    <ClCompile Include="Utility.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CubeApplication.h" />
+    <ClInclude Include="FontApplication.h" />
     <ClInclude Include="Geometry.h" />
     <ClInclude Include="Geometry_2D.h" />
     <ClInclude Include="Geometry_Color.h" />
     <ClInclude Include="Geometry_Text.h" />
     <ClInclude Include="Geometry_Texture.h" />
+    <ClInclude Include="ModelApplication.h" />
     <ClInclude Include="RenderEngine.h" />
     <ClInclude Include="RenderPipeline.h" />
+    <ClInclude Include="SpriteApplication.h" />
+    <ClInclude Include="Utility.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\color\shader.frag" />

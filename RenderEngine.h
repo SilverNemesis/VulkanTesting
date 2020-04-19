@@ -46,7 +46,7 @@ public:
     VkRenderPass render_pass_{};
     std::vector<VkFramebuffer> framebuffers_{};
 
-    RenderEngine(uint32_t subpass_count, uint32_t max_frames_in_flight) : subpass_count_(subpass_count), max_frames_in_flight_(max_frames_in_flight) {}
+    RenderEngine(uint32_t subpass_count) : subpass_count_(subpass_count) {}
 
     void Initialize(RenderApplication* render_application) {
 #ifdef _DEBUG
@@ -402,8 +402,8 @@ public:
 
 private:
     uint32_t subpass_count_;
-    uint32_t max_frames_in_flight_;
-    RenderApplication* render_application_;
+    uint32_t max_frames_in_flight_{2};
+    RenderApplication* render_application_{};
     bool debug_layers_ = false;
 
     VkSurfaceKHR surface_ = nullptr;
