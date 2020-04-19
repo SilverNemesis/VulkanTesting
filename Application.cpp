@@ -151,7 +151,7 @@ public:
             VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = ReadFile("shaders/text/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_text_.Initialize(vertex_shader_module, fragment_shader_module, 0, 0, 1, 2, true);
+            render_pipeline_text_.Initialize(vertex_shader_module, fragment_shader_module, 0, sizeof(glm::vec3), 1, 2, true);
         }
 
         LoadFont("fonts/Inconsolata/Inconsolata-Regular.ttf", 36, font_1_);
@@ -173,11 +173,11 @@ public:
         const char* text = "Hello world!";
 
         Geometry_Text geometry_text_1{};
-        RenderText(font_1_, text, -GetTextLength(font_1_, text) - 10, 0, {1.0, 1.0, 1.0}, geometry_text_1);
+        RenderText(font_1_, text, -GetTextLength(font_1_, text) - 10, 0, geometry_text_1);
         render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text_1.vertices, geometry_text_1.indices, font_primitive_1_);
 
         Geometry_Text geometry_text_2{};
-        RenderText(font_2_, text, 10, 0, {1.0, 1.0, 1.0}, geometry_text_2);
+        RenderText(font_2_, text, 10, 0, geometry_text_2);
         render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text_2.vertices, geometry_text_2.indices, font_primitive_2_);
 #else
         {
@@ -555,6 +555,8 @@ private:
         vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers_1, offsets_1);
         vkCmdBindIndexBuffer(command_buffer, font_primitive_1_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
         vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set_1, 0, nullptr);
+        glm::vec3 color_1{1.0, 0.0, 0.0};
+        vkCmdPushConstants(command_buffer, render_pipeline.pipeline_layout_, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(color_1), &color_1);
         vkCmdDrawIndexed(command_buffer, font_primitive_1_.index_count_, 1, 0, 0, 0);
 
         VkBuffer vertex_buffers_2[] = {font_primitive_2_.vertex_buffer_};
@@ -562,6 +564,8 @@ private:
         vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers_2, offsets_2);
         vkCmdBindIndexBuffer(command_buffer, font_primitive_2_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
         vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set_2, 0, nullptr);
+        glm::vec3 color_2{0.0, 0.0, 1.0};
+        vkCmdPushConstants(command_buffer, render_pipeline.pipeline_layout_, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(color_2), &color_2);
         vkCmdDrawIndexed(command_buffer, font_primitive_2_.index_count_, 1, 0, 0, 0);
 #else
 
@@ -721,7 +725,7 @@ private:
         }
     }
 
-    void RenderText(Font& font, const char* text, int x, int y, glm::vec3 color, Geometry_Text& geometry) {
+    void RenderText(Font& font, const char* text, int x, int y, Geometry_Text& geometry) {
         float xscale = 1.0f / window_width_;
         float yscale = 1.0f / window_height_;
 
@@ -754,7 +758,7 @@ private:
                 {l, t}
             };
 
-            geometry.AddFace(vertices, face, texture_coords, color);
+            geometry.AddFace(vertices, face, texture_coords);
 
             x += ch.a;
         }
