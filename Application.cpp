@@ -231,10 +231,21 @@ public:
     }
 
     void Run() {
+        long long frame_time = 0;
+
+        auto previous_time = std::chrono::high_resolution_clock::now();
+
         while (!window_closed_) {
             ProcessInput();
 
-            Update();
+            auto current_time = std::chrono::high_resolution_clock::now();
+            frame_time += std::chrono::duration_cast<std::chrono::microseconds>(current_time - previous_time).count();
+            previous_time = current_time;
+
+            while (frame_time > 4000) {
+                frame_time -= 4000;
+                Update();
+            }
 
             if (!window_minimized_) {
                 Render();
@@ -391,10 +402,6 @@ private:
     }
 
     void Update() {
-        static auto start_time = std::chrono::high_resolution_clock::now();
-        auto current_time = std::chrono::high_resolution_clock::now();
-        float total_time = std::chrono::duration<float, std::chrono::seconds::period>(current_time - start_time).count();
-
         glm::mat4 projection_matrix = glm::perspective(glm::radians(45.0f), render_engine_.swapchain_extent_.width / (float)render_engine_.swapchain_extent_.height, 0.1f, 100.0f);
 
         if (mouse_capture_) {
@@ -413,23 +420,28 @@ private:
             camera_up_ = glm::vec4(0.0f, -1.0f, 0.0f, 1.0f) * rotation;
         }
 
+        const float speed = 0.03f;
+
         if (key_state_[SDL_SCANCODE_W]) {
-            camera_position_ += 0.005f * camera_forward_;
+            camera_position_ += speed * camera_forward_;
         }
 
         if (key_state_[SDL_SCANCODE_S]) {
-            camera_position_ -= 0.005f * camera_forward_;
+            camera_position_ -= speed * camera_forward_;
         }
 
         if (key_state_[SDL_SCANCODE_A]) {
-            camera_position_ += 0.005f * camera_right_;
+            camera_position_ += speed * camera_right_;
         }
 
         if (key_state_[SDL_SCANCODE_D]) {
-            camera_position_ -= 0.005f * camera_right_;
+            camera_position_ -= speed * camera_right_;
         }
 
         glm::mat4 view_matrix = glm::lookAt(camera_position_, camera_position_ + camera_forward_, camera_up_);
+
+        static float total_time;
+        total_time += 4.0f / 1000.0f;
 
 #if MODE == 1
         uniform_buffer_.model = glm::mat4(1.0f);
