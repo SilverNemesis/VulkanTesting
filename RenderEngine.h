@@ -78,8 +78,6 @@ public:
         Log("maxVertexInputBindings = %u", limits_.maxVertexInputBindings);
         Log("maxVertexInputAttributeOffset = %u", limits_.maxVertexInputAttributeOffset);
         Log("maxVertexInputBindingStride = %u", limits_.maxVertexInputBindingStride);
-        Log("maxDrawIndexedIndexValue = %u", limits_.maxDrawIndexedIndexValue);
-        Log("maxDrawIndirectCount = %u", limits_.maxDrawIndirectCount);
         msaa_samples_ = GetMaxUsableSampleCount();
         CreateLogicalDevice();
         Log("logical device created");
