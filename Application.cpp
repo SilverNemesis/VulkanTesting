@@ -69,10 +69,19 @@ private:
     SDL_Window* window_ = NULL;
     int window_width_;
     int window_height_;
+
     bool window_minimized_ = false;
     bool window_closed_ = false;
+
     std::array<bool, SDL_NUM_SCANCODES> key_state_{};
     bool mouse_capture_ = false;
+
+    glm::vec3 camera_position_{0.0f, 0.5f, -3.0f};
+    glm::vec3 camera_forward_{0.0f, 0.0f, 1.0f};
+    glm::vec3 camera_right_{1.0f, 0.0f, 0.0f};
+    glm::vec3 camera_up_{0.0f, -1.0f, 0.0f};
+    float camera_yaw_ = 0.0;
+    float camera_pitch_ = 0.0;
 
     void ProcessInput() {
         SDL_Event event;
@@ -134,7 +143,41 @@ private:
         int mouse_x;
         int mouse_y;
         SDL_GetRelativeMouseState(&mouse_x, &mouse_y);
-        application_.Update(mouse_capture_, mouse_x, mouse_y, key_state_);
+
+        if (mouse_capture_) {
+            camera_yaw_ = std::fmod(camera_yaw_ - 0.05f * mouse_x, 360.0f);
+            camera_pitch_ = std::fmod(camera_pitch_ + 0.05f * mouse_y, 360.0f);
+            camera_pitch_ = camera_pitch_ < -89.0f ? -89.0f : camera_pitch_ > 89.0f ? 89.0f : camera_pitch_;
+
+            glm::mat4 rotation = glm::mat4{1.0f};
+            rotation = glm::rotate(rotation, glm::radians(camera_pitch_), glm::vec3{-1.0f, 0.0f, 0.0f});
+            rotation = glm::rotate(rotation, glm::radians(camera_yaw_), glm::vec3{0.0f, -1.0f, 0.0f});
+            camera_forward_ = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f) * rotation;
+            camera_right_ = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f) * rotation;
+            camera_up_ = glm::vec4(0.0f, -1.0f, 0.0f, 1.0f) * rotation;
+        }
+
+        const float speed = 0.03f;
+
+        if (key_state_[SDL_SCANCODE_W]) {
+            camera_position_ += speed * camera_forward_;
+        }
+
+        if (key_state_[SDL_SCANCODE_S]) {
+            camera_position_ -= speed * camera_forward_;
+        }
+
+        if (key_state_[SDL_SCANCODE_A]) {
+            camera_position_ += speed * camera_right_;
+        }
+
+        if (key_state_[SDL_SCANCODE_D]) {
+            camera_position_ -= speed * camera_right_;
+        }
+
+        glm::mat4 view_matrix = glm::lookAt(camera_position_, camera_position_ + camera_forward_, camera_up_);
+
+        application_.Update(view_matrix);
     }
 
     void Render() {

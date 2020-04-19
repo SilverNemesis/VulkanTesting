@@ -65,7 +65,7 @@ public:
         render_engine_.Destroy();
     }
 
-    void Update(bool mouse_capture, int mouse_x, int mouse_y, std::array<bool, SDL_NUM_SCANCODES>& key_state) {
+    void Update(glm::mat4 view_matrix) {
     }
 
     void Render() {
