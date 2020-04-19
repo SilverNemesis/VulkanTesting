@@ -618,7 +618,7 @@ private:
             throw std::runtime_error("unable to get query results");
         }
 
-        SDL_Log("%8lld %8lld", duration, static_cast<long long>((time_stamp[1] - time_stamp[0]) * render_engine_.timestamp_period_ / 1000.0f));
+        SDL_Log("%8lld %8lld", duration, static_cast<long long>((time_stamp[1] - time_stamp[0]) * render_engine_.limits_.timestampPeriod / 1000.0f));
 #endif
 
         render_engine_.PresentImage(image_index);

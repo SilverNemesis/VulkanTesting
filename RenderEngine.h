@@ -38,7 +38,7 @@ public:
     static void (*Log)(const char* format, ...);
 
     VkSampleCountFlagBits msaa_samples_ = VK_SAMPLE_COUNT_1_BIT;
-    float timestamp_period_{};
+    VkPhysicalDeviceLimits limits_;
     VkDevice device_ = nullptr;
     uint32_t image_count_ = 0;
     VkExtent2D swapchain_extent_{};
@@ -65,6 +65,22 @@ public:
         Log("surface created");
         PickPhysicalDevice();
         Log("physical device selected");
+        Log("maxImageDimension2D = %u", limits_.maxImageDimension2D);
+        Log("maxUniformBufferRange = %u", limits_.maxUniformBufferRange);
+        Log("maxPushConstantsSize = %u", limits_.maxPushConstantsSize);
+        Log("maxPerStageDescriptorSamplers = %u", limits_.maxPerStageDescriptorSamplers);
+        Log("maxPerStageDescriptorUniformBuffers = %u", limits_.maxPerStageDescriptorUniformBuffers);
+        Log("maxDescriptorSetSamplers = %u", limits_.maxDescriptorSetSamplers);
+        Log("maxDescriptorSetUniformBuffers = %u", limits_.maxDescriptorSetUniformBuffers);
+        Log("maxDescriptorSetUniformBuffersDynamic = %u", limits_.maxDescriptorSetUniformBuffersDynamic);
+        Log("maxDescriptorSetSampledImages = %u", limits_.maxDescriptorSetSampledImages);
+        Log("maxVertexInputAttributes = %u", limits_.maxVertexInputAttributes);
+        Log("maxVertexInputBindings = %u", limits_.maxVertexInputBindings);
+        Log("maxVertexInputAttributeOffset = %u", limits_.maxVertexInputAttributeOffset);
+        Log("maxVertexInputBindingStride = %u", limits_.maxVertexInputBindingStride);
+        Log("maxDrawIndexedIndexValue = %u", limits_.maxDrawIndexedIndexValue);
+        Log("maxDrawIndirectCount = %u", limits_.maxDrawIndirectCount);
+        msaa_samples_ = GetMaxUsableSampleCount();
         CreateLogicalDevice();
         Log("logical device created");
         CreateCommandPool();
@@ -413,6 +429,7 @@ private:
     VkDebugUtilsMessengerEXT debug_messenger_;
 
     VkPhysicalDevice physical_device_ = VK_NULL_HANDLE;
+    VkPhysicalDeviceProperties physical_device_properties_{};
     const std::vector<const char*> device_extensions_{VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     const std::vector<const char*> validation_layers_{"VK_LAYER_KHRONOS_validation"};
 
@@ -548,7 +565,8 @@ private:
         for (const auto& device : devices) {
             if (IsDeviceSuitable(device)) {
                 physical_device_ = device;
-                msaa_samples_ = GetMaxUsableSampleCount();
+                vkGetPhysicalDeviceProperties(physical_device_, &physical_device_properties_);
+                limits_ = physical_device_properties_.limits;
                 break;
             }
         }
@@ -581,18 +599,13 @@ private:
     }
 
     VkSampleCountFlagBits GetMaxUsableSampleCount() {
-        VkPhysicalDeviceProperties physical_device_properties;
-        vkGetPhysicalDeviceProperties(physical_device_, &physical_device_properties);
-        timestamp_period_ = physical_device_properties.limits.timestampPeriod;
-
-        VkSampleCountFlags counts = physical_device_properties.limits.framebufferColorSampleCounts & physical_device_properties.limits.framebufferDepthSampleCounts;
+        VkSampleCountFlags counts = limits_.framebufferColorSampleCounts & limits_.framebufferDepthSampleCounts;
         if (counts & VK_SAMPLE_COUNT_64_BIT) { return VK_SAMPLE_COUNT_64_BIT; }
         if (counts & VK_SAMPLE_COUNT_32_BIT) { return VK_SAMPLE_COUNT_32_BIT; }
         if (counts & VK_SAMPLE_COUNT_16_BIT) { return VK_SAMPLE_COUNT_16_BIT; }
         if (counts & VK_SAMPLE_COUNT_8_BIT) { return VK_SAMPLE_COUNT_8_BIT; }
         if (counts & VK_SAMPLE_COUNT_4_BIT) { return VK_SAMPLE_COUNT_4_BIT; }
         if (counts & VK_SAMPLE_COUNT_2_BIT) { return VK_SAMPLE_COUNT_2_BIT; }
-
         return VK_SAMPLE_COUNT_1_BIT;
     }
 
