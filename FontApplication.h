@@ -9,12 +9,6 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/hash.hpp>
 
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_vulkan.h>
-
-#include <ft2build.h>
-#include FT_FREETYPE_H
-
 #include "Utility.h"
 #include "RenderEngine.h"
 #include "RenderPipeline.h"
@@ -22,20 +16,8 @@
 
 struct Font {
     float size;
-
-    TextureSampler font_texture_;
-
-    struct Character {
-        uint16_t x;
-        uint16_t y;
-        uint8_t a;
-        uint8_t w;
-        uint8_t h;
-        uint8_t dx;
-        uint8_t dy;
-    };
-
-    std::map<unsigned char, Character> characters_;
+    TextureSampler texture;
+    std::map<unsigned char, Utility::FontCharacter> characters;
 };
 
 class FontApplication {
@@ -58,8 +40,8 @@ public:
         LoadFont("fonts/Inconsolata/Inconsolata-Regular.ttf", 36, font_1_);
         LoadFont("fonts/katakana/katakana.ttf", 48, font_2_);
 
-        render_pipeline_text_.UpdateDescriptorSets(0, {font_1_.font_texture_});
-        render_pipeline_text_.UpdateDescriptorSets(1, {font_2_.font_texture_});
+        render_pipeline_text_.UpdateDescriptorSets(0, {font_1_.texture});
+        render_pipeline_text_.UpdateDescriptorSets(1, {font_2_.texture});
 
         std::vector<glm::vec2> texture_coordinates = {
             {0, 1},
@@ -174,8 +156,8 @@ public:
 
     void PipelineRebuild() {
         render_pipeline_text_.Rebuild();
-        render_pipeline_text_.UpdateDescriptorSets(0, {font_1_.font_texture_});
-        render_pipeline_text_.UpdateDescriptorSets(1, {font_2_.font_texture_});
+        render_pipeline_text_.UpdateDescriptorSets(0, {font_1_.texture});
+        render_pipeline_text_.UpdateDescriptorSets(1, {font_2_.texture});
     }
 
 private:
@@ -207,7 +189,7 @@ private:
         std::vector<uint32_t> face = {3, 2, 1, 0};
 
         for (const char* cur = text; *cur != 0; cur++) {
-            Font::Character ch = font.characters_[*cur];
+            Utility::FontCharacter ch = font.characters[*cur];
 
             float l = static_cast<float>(x + ch.dx) * xscale;
             float r = static_cast<float>(x + ch.dx + ch.w) * xscale;
@@ -242,97 +224,21 @@ private:
     int32_t GetTextLength(Font& font, const char* text) {
         int32_t size = 0;
         for (const char* cur = text; *cur != 0; cur++) {
-            Font::Character ch = font.characters_[*cur];
+            Utility::FontCharacter ch = font.characters[*cur];
             size += ch.a;
         }
         return size;
     }
 
     void LoadFont(const char* file_name, uint32_t font_size, Font& font) {
-        FT_Library ft;
-        if (FT_Init_FreeType(&ft)) {
-            throw std::runtime_error("unable to initialize font library");
-        }
-
-        FT_Face face;
-        if (FT_New_Face(ft, file_name, 0, &face)) {
-            throw std::runtime_error("unable to load font");
-        }
-
-        FT_Set_Pixel_Sizes(face, 0, font_size);
-
-        uint32_t size;
-
-        for (size = 128; size < 4096; size *= 2) {
-            uint32_t width = size;
-            uint32_t height = size;
-            unsigned char* pixels = new unsigned char[width * height];
-            memset(pixels, 0, width * height);
-
-            bool resize = false;
-
-            uint32_t x = 0;
-            uint32_t y = 0;
-            uint32_t my = 0;
-
-            for (int i = 0; i < 256; i++) {
-                int index = FT_Get_Char_Index(face, i);
-
-                if (index == 0) {
-                    continue;
-                }
-
-                if (FT_Load_Glyph(face, index, FT_LOAD_RENDER)) {
-                    throw std::runtime_error("failed to load glyph");
-                }
-
-                FT_Bitmap b = face->glyph->bitmap;
-
-                if (x + b.width > width) {
-                    x = 0;
-                    y = my + 1;
-                }
-
-                if (y + b.rows > height) {
-                    resize = true;
-                    continue;
-                }
-
-                unsigned char* src = b.buffer;
-                unsigned char* dst = pixels + y * width + x;
-
-                for (uint32_t r = 0; r < b.rows; r++) {
-                    memcpy(dst, src, b.width);
-                    dst += width;
-                    src += b.width;
-                }
-
-                font.characters_[i] = {(uint16_t)x, (uint16_t)y, (uint8_t)(face->glyph->advance.x >> 6), (uint8_t)b.width, (uint8_t)b.rows, (uint8_t)face->glyph->bitmap_left, (uint8_t)face->glyph->bitmap_top};
-
-                x += b.width + 1;
-
-                if (y + b.rows > my) {
-                    my = y + b.rows;
-                }
-            }
-
-            if (!resize) {
-                render_engine_.CreateAlphaTexture(pixels, width, height, font.font_texture_);
-                delete[] pixels;
-                break;
-            }
-
-            font.characters_.clear();
-            delete[] pixels;
-        }
-
-        FT_Done_Face(face);
-        FT_Done_FreeType(ft);
-
-        font.size = static_cast<float>(size);
+        Utility::FontImage font_image;
+        Utility::LoadFontImage(file_name, font_size, font_image, font.size, font.characters);
+        render_engine_.CreateAlphaTexture(font_image.pixels, font_image.width, font_image.height, font.texture);
+        Utility::FreeFontImage(font_image);
     }
 
     void DestroyFont(Font& font) {
-        render_engine_.DestroyTexture(font.font_texture_);
+        render_engine_.DestroyTexture(font.texture);
+        font.characters.clear();
     }
 };
