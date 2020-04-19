@@ -13,10 +13,11 @@ public:
         render_engine_(render_engine), binding_description_(binding_description), attribute_descriptions_(attribute_descriptions), subpass_(subpass) {
     }
 
-    void Initialize(VkShaderModule& vertex_shader_module, VkShaderModule& fragment_shader_module, size_t uniform_buffer_size, uint32_t image_sampler_count, uint32_t descriptor_set_count, bool use_alpha) {
+    void Initialize(VkShaderModule& vertex_shader_module, VkShaderModule& fragment_shader_module, size_t uniform_buffer_size, size_t push_constant_size_fragment, uint32_t image_sampler_count, uint32_t descriptor_set_count, bool use_alpha) {
         vertex_shader_module_ = vertex_shader_module;
         fragment_shader_module_ = fragment_shader_module;
         uniform_buffer_size_ = static_cast<uint32_t>(uniform_buffer_size);
+        push_constant_size_fragment_ = static_cast<uint32_t>(push_constant_size_fragment);
         image_sampler_count_ = image_sampler_count;
         descriptor_set_count_ = descriptor_set_count;
         use_alpha_ = use_alpha;
@@ -124,6 +125,7 @@ private:
     VkDescriptorSetLayout descriptor_set_layout_{};
     std::vector<VkDescriptorSet> descriptor_sets_{};
     uint32_t uniform_buffer_size_{};
+    uint32_t push_constant_size_fragment_{};
     std::vector<VkBuffer> uniform_buffers_{};
     std::vector<VkDeviceMemory> uniform_buffers_memory_{};
     bool use_alpha_ = false;
@@ -326,10 +328,21 @@ private:
         color_blending.blendConstants[2] = 0.0f;
         color_blending.blendConstants[3] = 0.0f;
 
+        std::vector<VkPushConstantRange>push_constant_ranges;
+        if (push_constant_size_fragment_ > 0) {
+            VkPushConstantRange push_constant_range;
+            push_constant_range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+            push_constant_range.offset = 0;
+            push_constant_range.size = push_constant_size_fragment_;
+            push_constant_ranges.push_back(push_constant_range);
+        }
+
         VkPipelineLayoutCreateInfo pipeline_layout_info = {};
         pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         pipeline_layout_info.setLayoutCount = 1;
         pipeline_layout_info.pSetLayouts = &descriptor_set_layout_;
+        pipeline_layout_info.pushConstantRangeCount = static_cast<uint32_t>(push_constant_ranges.size());
+        pipeline_layout_info.pPushConstantRanges = push_constant_ranges.data();
 
         if (vkCreatePipelineLayout(render_engine_.device_, &pipeline_layout_info, nullptr, &pipeline_layout_) != VK_SUCCESS) {
             throw std::runtime_error("failed to create pipeline layout");

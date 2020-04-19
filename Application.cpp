@@ -103,7 +103,7 @@ public:
             VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = ReadFile("shaders/texture/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 1, 1, false);
+            render_pipeline_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 0, 1, 1, false);
         }
 
         LoadTexture(TEXTURE_PATH, texture_);
@@ -121,7 +121,7 @@ public:
             VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = ReadFile("shaders/ortho2d/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_sprite_.Initialize(vertex_shader_module, fragment_shader_module, 0, 1, 1, false);
+            render_pipeline_sprite_.Initialize(vertex_shader_module, fragment_shader_module, 0, 0, 1, 1, false);
         }
 
         LoadTexture(SPRITE_PATH, sprite_texture_);
@@ -151,7 +151,7 @@ public:
             VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = ReadFile("shaders/text/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_text_.Initialize(vertex_shader_module, fragment_shader_module, 0, 1, 2, true);
+            render_pipeline_text_.Initialize(vertex_shader_module, fragment_shader_module, 0, 0, 1, 2, true);
         }
 
         LoadFont("fonts/Inconsolata/Inconsolata-Regular.ttf", 36, font_1_);
@@ -186,7 +186,7 @@ public:
             VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = ReadFile("shaders/color/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_color_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 0, 1, false);
+            render_pipeline_color_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 0, 0, 1, false);
         }
 
         {
@@ -195,7 +195,7 @@ public:
             VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = ReadFile("shaders/notexture/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_texture_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 0, 1, false);
+            render_pipeline_texture_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 0, 0, 1, false);
         }
 
         {
