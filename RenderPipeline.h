@@ -101,6 +101,14 @@ public:
         delete[] descriptor_images;
     }
 
+    void UpdateUniformBuffers(void* uniform_buffer) {
+        for (uint32_t image_index = 0; image_index < render_engine_.image_count_; image_index++) {
+            for (uint32_t descriptor_set_index = 0; descriptor_set_index < descriptor_set_count_; descriptor_set_index++) {
+                UpdateUniformBuffer(image_index, descriptor_set_index, uniform_buffer);
+            }
+        }
+    }
+
     void UpdateUniformBuffer(uint32_t image_index, uint32_t descriptor_set_index, void* uniform_buffer) {
         void* data;
         vkMapMemory(render_engine_.device_, uniform_buffers_memory_[image_index * descriptor_set_count_ + descriptor_set_index], 0, uniform_buffer_size_, 0, &data);
