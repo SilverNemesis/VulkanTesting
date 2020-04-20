@@ -30,7 +30,7 @@ public:
             VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = Utility::ReadFile("shaders/texture/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 0, 1, 1, false);
+            render_pipeline_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 0, 1, 1, true, false);
         }
 
         LoadTexture(TEXTURE_PATH, texture_);

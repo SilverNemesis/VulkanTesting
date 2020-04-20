@@ -13,13 +13,14 @@ public:
         render_engine_(render_engine), binding_description_(binding_description), attribute_descriptions_(attribute_descriptions), subpass_(subpass) {
     }
 
-    void Initialize(VkShaderModule& vertex_shader_module, VkShaderModule& fragment_shader_module, size_t uniform_buffer_size, size_t push_constant_size_fragment, uint32_t image_sampler_count, uint32_t descriptor_set_count, bool use_alpha) {
+    void Initialize(VkShaderModule& vertex_shader_module, VkShaderModule& fragment_shader_module, size_t uniform_buffer_size, size_t push_constant_size_fragment, uint32_t image_sampler_count, uint32_t descriptor_set_count, bool use_depth, bool use_alpha) {
         vertex_shader_module_ = vertex_shader_module;
         fragment_shader_module_ = fragment_shader_module;
         uniform_buffer_size_ = static_cast<uint32_t>(uniform_buffer_size);
         push_constant_size_fragment_ = static_cast<uint32_t>(push_constant_size_fragment);
         image_sampler_count_ = image_sampler_count;
         descriptor_set_count_ = descriptor_set_count;
+        use_depth_ = use_depth;
         use_alpha_ = use_alpha;
         CreateUniformBuffers();
         CreateDescriptorSetLayout();
@@ -136,6 +137,7 @@ private:
     uint32_t push_constant_size_fragment_{};
     std::vector<VkBuffer> uniform_buffers_{};
     std::vector<VkDeviceMemory> uniform_buffers_memory_{};
+    bool use_depth_ = false;
     bool use_alpha_ = false;
 
     void CreateDescriptorSetLayout() {
@@ -307,11 +309,19 @@ private:
 
         VkPipelineDepthStencilStateCreateInfo depth_stencil = {};
         depth_stencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-        depth_stencil.depthTestEnable = VK_TRUE;
-        depth_stencil.depthWriteEnable = VK_TRUE;
-        depth_stencil.depthCompareOp = VK_COMPARE_OP_LESS;
-        depth_stencil.depthBoundsTestEnable = VK_FALSE;
-        depth_stencil.stencilTestEnable = VK_FALSE;
+        if (use_depth_) {
+            depth_stencil.depthTestEnable = VK_TRUE;
+            depth_stencil.depthWriteEnable = VK_TRUE;
+            depth_stencil.depthCompareOp = VK_COMPARE_OP_LESS;
+            depth_stencil.depthBoundsTestEnable = VK_FALSE;
+            depth_stencil.stencilTestEnable = VK_FALSE;
+        } else {
+            depth_stencil.depthTestEnable = VK_FALSE;
+            depth_stencil.depthWriteEnable = VK_FALSE;
+            depth_stencil.depthCompareOp = VK_COMPARE_OP_ALWAYS;
+            depth_stencil.depthBoundsTestEnable = VK_FALSE;
+            depth_stencil.stencilTestEnable = VK_FALSE;
+        }
 
         VkPipelineColorBlendAttachmentState color_blend_attachment = {};
         color_blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;

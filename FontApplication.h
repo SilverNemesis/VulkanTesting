@@ -34,7 +34,7 @@ public:
             VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = Utility::ReadFile("shaders/text/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_text_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), sizeof(glm::vec3), 1, 2, true);
+            render_pipeline_text_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), sizeof(glm::vec3), 1, 2, false, true);
         }
 
         LoadFont("fonts/Inconsolata/Inconsolata-Regular.ttf", 36, font_1_);
@@ -56,11 +56,11 @@ public:
         const char* text = "Hello world!";
 
         Geometry_Text geometry_text_1{};
-        RenderText(font_1_, text, 0, 200, geometry_text_1);
+        RenderText(font_1_, text, 200, 300, geometry_text_1);
         render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text_1.vertices, geometry_text_1.indices, font_primitive_1_);
 
         Geometry_Text geometry_text_2{};
-        RenderText(font_2_, text, 0, 400, geometry_text_2);
+        RenderText(font_2_, text, 600, 300, geometry_text_2);
         render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text_2.vertices, geometry_text_2.indices, font_primitive_2_);
 
         UpdateProjection();
