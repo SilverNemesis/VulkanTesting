@@ -28,7 +28,23 @@ public:
             VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = Utility::ReadFile("shaders/color/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_color_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 0, 0, 1, true, false);
+
+            color_uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(UniformBufferObject));
+
+            color_descriptor_set_ = render_engine_.CreateDescriptorSet({color_uniform_buffer_}, 0);
+
+            color_graphics_pipeline_ = render_engine_.CreateGraphicsPipeline
+            (
+                vertex_shader_module,
+                fragment_shader_module,
+                0,
+                Vertex_Color::getBindingDescription(),
+                Vertex_Color::getAttributeDescriptions(),
+                color_descriptor_set_,
+                0,
+                true,
+                false
+            );
         }
 
         {
@@ -37,7 +53,23 @@ public:
             VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = Utility::ReadFile("shaders/notexture/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_texture_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), 0, 0, 1, true, false);
+
+            texture_uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(UniformBufferObject));
+
+            texture_descriptor_set_ = render_engine_.CreateDescriptorSet({texture_uniform_buffer_}, 0);
+
+            texture_graphics_pipeline_ = render_engine_.CreateGraphicsPipeline
+            (
+                vertex_shader_module,
+                fragment_shader_module,
+                0,
+                Vertex_Texture::getBindingDescription(),
+                Vertex_Texture::getAttributeDescriptions(),
+                texture_descriptor_set_,
+                0,
+                true,
+                false
+            );
         }
 
         {
@@ -73,10 +105,18 @@ public:
 
     void Shutdown() {
         vkDeviceWaitIdle(render_engine_.device_);
-        render_pipeline_texture_.Destroy();
-        render_pipeline_color_.Destroy();
+
+        render_engine_.DestroyGraphicsPipeline(color_graphics_pipeline_);
+        render_engine_.DestroyDescriptorSet(color_descriptor_set_);
+        render_engine_.DestroyUniformBuffer(color_uniform_buffer_);
+
+        render_engine_.DestroyGraphicsPipeline(texture_graphics_pipeline_);
+        render_engine_.DestroyDescriptorSet(texture_descriptor_set_);
+        render_engine_.DestroyUniformBuffer(texture_uniform_buffer_);
+
         render_engine_.DestroyIndexedPrimitive(texture_primitive_);
         render_engine_.DestroyIndexedPrimitive(color_primitive_);
+
         render_engine_.Destroy();
     }
 
@@ -141,34 +181,26 @@ public:
         vkCmdBeginRenderPass(command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
 
         {
-            RenderPipeline& render_pipeline = render_pipeline_color_;
-            const VkDescriptorSet& descriptor_set = render_pipeline.GetDescriptorSet(image_index, 0);
-
-            render_pipeline.UpdateUniformBuffer(image_index, 0, &uniform_buffer_1_);
-
-            vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.graphics_pipeline_);
+            render_engine_.UpdateUniformBuffer(color_uniform_buffer_, image_index, &uniform_buffer_1_);
+            vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, color_graphics_pipeline_->graphics_pipeline);
             VkBuffer vertex_buffers_1[] = {color_primitive_.vertex_buffer_};
             VkDeviceSize offsets_1[] = {0};
             vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers_1, offsets_1);
             vkCmdBindIndexBuffer(command_buffer, color_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-            vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set, 0, nullptr);
+            vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, color_graphics_pipeline_->pipeline_layout, 0, 1, &color_descriptor_set_->descriptor_sets[image_index], 0, nullptr);
             vkCmdDrawIndexed(command_buffer, color_primitive_.index_count_, 1, 0, 0, 0);
         }
 
         vkCmdNextSubpass(command_buffer, VK_SUBPASS_CONTENTS_INLINE);
 
         {
-            RenderPipeline& render_pipeline = render_pipeline_texture_;
-            const VkDescriptorSet& descriptor_set = render_pipeline.GetDescriptorSet(image_index, 0);
-
-            render_pipeline.UpdateUniformBuffer(image_index, 0, &uniform_buffer_2_);
-
-            vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.graphics_pipeline_);
+            render_engine_.UpdateUniformBuffer(texture_uniform_buffer_, image_index, &uniform_buffer_2_);
+            vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->graphics_pipeline);
             VkBuffer vertex_buffers_2[] = {texture_primitive_.vertex_buffer_};
             VkDeviceSize offsets_2[] = {0};
             vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers_2, offsets_2);
             vkCmdBindIndexBuffer(command_buffer, texture_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-            vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set, 0, nullptr);
+            vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->pipeline_layout, 0, 1, &texture_descriptor_set_->descriptor_sets[image_index], 0, nullptr);
             vkCmdDrawIndexed(command_buffer, texture_primitive_.index_count_, 1, 0, 0, 0);
         }
 
@@ -190,13 +222,13 @@ public:
     }
 
     void PipelineReset() {
-        render_pipeline_texture_.Reset();
-        render_pipeline_color_.Reset();
+        render_engine_.ResetGraphicsPipeline(texture_graphics_pipeline_);
+        render_engine_.ResetGraphicsPipeline(color_graphics_pipeline_);
     }
 
     void PipelineRebuild() {
-        render_pipeline_color_.Rebuild();
-        render_pipeline_texture_.Rebuild();
+        render_engine_.RebuildGraphicsPipeline(texture_graphics_pipeline_);
+        render_engine_.RebuildGraphicsPipeline(color_graphics_pipeline_);
     }
 
 private:
@@ -204,8 +236,14 @@ private:
     int window_height_;
 
     RenderEngine render_engine_{2};
-    RenderPipeline render_pipeline_color_{render_engine_, Vertex_Color::getBindingDescription(), Vertex_Color::getAttributeDescriptions(), 0};
-    RenderPipeline render_pipeline_texture_{render_engine_, Vertex_Texture::getBindingDescription(), Vertex_Texture::getAttributeDescriptions(), 1};
+
+    std::shared_ptr<RenderEngine::UniformBuffer> color_uniform_buffer_{};
+    std::shared_ptr<RenderEngine::DescriptorSet> color_descriptor_set_{};
+    std::shared_ptr<RenderEngine::GraphicsPipeline> color_graphics_pipeline_{};
+
+    std::shared_ptr<RenderEngine::UniformBuffer> texture_uniform_buffer_{};
+    std::shared_ptr<RenderEngine::DescriptorSet> texture_descriptor_set_{};
+    std::shared_ptr<RenderEngine::GraphicsPipeline> texture_graphics_pipeline_{};
 
     struct UniformBufferObject {
         glm::mat4 model;
