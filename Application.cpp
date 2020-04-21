@@ -27,7 +27,6 @@ public:
     Application(int window_width, int window_height) : window_width_(window_width), window_height_(window_height) {}
 
     void Startup() {
-        SDL_Log("application startup");
         if (SDL_Init(SDL_INIT_VIDEO) < 0) {
             throw std::runtime_error(SDL_GetError());
         }
@@ -65,7 +64,6 @@ public:
     }
 
     void Shutdown() {
-        SDL_Log("application shutdown");
         application_.Shutdown();
         SDL_DestroyWindow(window_);
         SDL_Quit();
@@ -217,8 +215,6 @@ private:
     }
 };
 
-void (*(RenderEngine::Log))(const char* fmt, ...) = SDL_Log;
-
 int main(int argc, char* argv[]) {
     Application app(800, 600);
 
@@ -229,7 +225,7 @@ int main(int argc, char* argv[]) {
     }
     catch (const std::exception& exception) {
 #ifdef _DEBUG
-        SDL_Log("%s", exception.what());
+        SDL_LogCritical(SDL_LOG_CATEGORY_APPLICATION, "%s", exception.what());
 #else
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Run-Time Error", exception.what(), nullptr);
 #endif

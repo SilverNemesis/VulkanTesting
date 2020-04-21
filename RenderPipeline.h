@@ -36,14 +36,12 @@ public:
     }
 
     void Reset() {
-        RenderEngine::Log("reseting pipeline");
         vkDestroyPipeline(render_engine_.device_, graphics_pipeline_, nullptr);
         vkDestroyPipelineLayout(render_engine_.device_, pipeline_layout_, nullptr);
         vkDestroyDescriptorPool(render_engine_.device_, descriptor_pool_, nullptr);
     }
 
     void Rebuild() {
-        RenderEngine::Log("rebuilding pipeline");
         CreateGraphicsPipeline(render_engine_.swapchain_extent_, render_engine_.render_pass_);
         CreateDescriptorPool();
         CreateDescriptorSets();

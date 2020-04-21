@@ -35,8 +35,6 @@ public:
 
 class RenderEngine {
 public:
-    static void (*Log)(const char* format, ...);
-
     VkSampleCountFlagBits msaa_samples_ = VK_SAMPLE_COUNT_1_BIT;
     VkPhysicalDeviceLimits limits_;
     VkDevice device_ = nullptr;
@@ -56,33 +54,14 @@ public:
         std::vector<const char*> required_extensions{};
         render_application_->GetRequiredExtensions(required_extensions);
         CreateInstance(required_extensions);
-        Log("instance created");
         if (debug_layers_) {
             SetupDebugMessenger();
-            Log("debug messenger created");
         }
         render_application_->CreateSurface(instance_, surface_);
-        Log("surface created");
         PickPhysicalDevice();
-        Log("physical device selected");
-        Log("maxImageDimension2D = %u", limits_.maxImageDimension2D);
-        Log("maxUniformBufferRange = %u", limits_.maxUniformBufferRange);
-        Log("maxPushConstantsSize = %u", limits_.maxPushConstantsSize);
-        Log("maxPerStageDescriptorSamplers = %u", limits_.maxPerStageDescriptorSamplers);
-        Log("maxPerStageDescriptorUniformBuffers = %u", limits_.maxPerStageDescriptorUniformBuffers);
-        Log("maxDescriptorSetSamplers = %u", limits_.maxDescriptorSetSamplers);
-        Log("maxDescriptorSetUniformBuffers = %u", limits_.maxDescriptorSetUniformBuffers);
-        Log("maxDescriptorSetUniformBuffersDynamic = %u", limits_.maxDescriptorSetUniformBuffersDynamic);
-        Log("maxDescriptorSetSampledImages = %u", limits_.maxDescriptorSetSampledImages);
-        Log("maxVertexInputAttributes = %u", limits_.maxVertexInputAttributes);
-        Log("maxVertexInputBindings = %u", limits_.maxVertexInputBindings);
-        Log("maxVertexInputAttributeOffset = %u", limits_.maxVertexInputAttributeOffset);
-        Log("maxVertexInputBindingStride = %u", limits_.maxVertexInputBindingStride);
         msaa_samples_ = GetMaxUsableSampleCount();
         CreateLogicalDevice();
-        Log("logical device created");
         CreateCommandPool();
-        Log("command pool created");
         int window_width;
         int window_height;
         render_application_->GetDrawableSize(window_width, window_height);
@@ -100,7 +79,6 @@ public:
         CreateSwapchain(window_width, window_height);
         CreateRenderPass();
         CreateFramebuffers(render_pass_, framebuffers_);
-        Log("render pass created");
         CreateSyncObjects();
     }
 
@@ -115,19 +93,13 @@ public:
         }
         vkDestroyRenderPass(device_, render_pass_, nullptr);
         DestroySwapchain();
-        Log("render pass destroyed");
         vkDestroyCommandPool(device_, command_pool_, nullptr);
-        Log("command pool destroyed");
         vkDestroyDevice(device_, nullptr);
-        Log("logical device destroyed");
         vkDestroySurfaceKHR(instance_, surface_, nullptr);
-        Log("surface destroyed");
         if (debug_layers_) {
             DestroyDebugUtilsMessengerEXT(instance_, debug_messenger_, nullptr);
-            Log("debug messenger destroyed");
         }
         vkDestroyInstance(instance_, nullptr);
-        Log("instance destroyed");
     }
 
     void RebuildSwapchain() {
@@ -545,7 +517,6 @@ private:
     }
 
     static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity, VkDebugUtilsMessageTypeFlagsEXT message_type, const VkDebugUtilsMessengerCallbackDataEXT* callback_data, void* user_data) {
-        RenderEngine::Log("%s", callback_data->pMessage);
         return VK_FALSE;
     }
 
@@ -863,8 +834,6 @@ private:
         depth_image_view_ = CreateImageView(depth_image_, depth_format, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
 
         CreateCommandBuffers();
-
-        RenderEngine::Log("swapchain created x=%d, y=%d", window_width, window_height);
     }
 
     void DestroySwapchain() {
@@ -883,8 +852,6 @@ private:
         }
 
         vkDestroySwapchainKHR(device_, swapchain_, nullptr);
-
-        RenderEngine::Log("swapchain destroyed");
     }
 
     void CreateImage(uint32_t width, uint32_t height, uint32_t mip_levels, VkSampleCountFlagBits num_samples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& image_memory) {
