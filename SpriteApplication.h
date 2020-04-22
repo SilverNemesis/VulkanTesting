@@ -29,12 +29,26 @@ public:
             VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = Utility::ReadFile("shaders/ortho2d/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_sprite_.Initialize(vertex_shader_module, fragment_shader_module, 0, 0, 1, 1, false, false);
+
+            texture_descriptor_set_ = render_engine_.CreateDescriptorSet({}, 1);
+
+            texture_graphics_pipeline_ = render_engine_.CreateGraphicsPipeline
+            (
+                vertex_shader_module,
+                fragment_shader_module,
+                0,
+                Vertex_2D::getBindingDescription(),
+                Vertex_2D::getAttributeDescriptions(),
+                texture_descriptor_set_,
+                0,
+                true,
+                false
+            );
         }
 
         LoadTexture(SPRITE_PATH, sprite_texture_);
 
-        render_pipeline_sprite_.UpdateDescriptorSets(0, {sprite_texture_});
+        render_engine_.UpdateDescriptorSets(texture_descriptor_set_, {sprite_texture_});
 
         {
             std::vector<glm::vec2> vertices{};
@@ -56,7 +70,10 @@ public:
 
     void Shutdown() {
         vkDeviceWaitIdle(render_engine_.device_);
-        render_pipeline_sprite_.Destroy();
+
+        render_engine_.DestroyGraphicsPipeline(texture_graphics_pipeline_);
+        render_engine_.DestroyDescriptorSet(texture_descriptor_set_);
+
         render_engine_.DestroyIndexedPrimitive(sprite_primitive_);
         render_engine_.DestroyTexture(sprite_texture_);
         render_engine_.Destroy();
@@ -97,19 +114,13 @@ public:
 
         vkCmdBeginRenderPass(command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
 
-        RenderPipeline& render_pipeline = render_pipeline_sprite_;
-        const VkDescriptorSet& descriptor_set = render_pipeline.GetDescriptorSet(image_index, 0);
-
-        vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.graphics_pipeline_);
-        if (sprite_primitive_.index_count_ > 0) {
-            VkBuffer vertex_buffers_1[] = {sprite_primitive_.vertex_buffer_};
-            VkDeviceSize offsets_1[] = {0};
-            vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers_1, offsets_1);
-            vkCmdBindIndexBuffer(command_buffer, sprite_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-            vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set, 0, nullptr);
-            vkCmdDrawIndexed(command_buffer, sprite_primitive_.index_count_, 1, 0, 0, 0);
-        }
-
+        vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->graphics_pipeline);
+        VkBuffer vertex_buffers_1[] = {sprite_primitive_.vertex_buffer_};
+        VkDeviceSize offsets_1[] = {0};
+        vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers_1, offsets_1);
+        vkCmdBindIndexBuffer(command_buffer, sprite_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->pipeline_layout, 0, 1, &texture_descriptor_set_->descriptor_sets[image_index], 0, nullptr);
+        vkCmdDrawIndexed(command_buffer, sprite_primitive_.index_count_, 1, 0, 0, 0);
         vkCmdEndRenderPass(command_buffer);
 
         if (vkEndCommandBuffer(command_buffer) != VK_SUCCESS) {
@@ -128,19 +139,21 @@ public:
     }
 
     void PipelineReset() {
-        render_pipeline_sprite_.Reset();
+        render_engine_.ResetGraphicsPipeline(texture_graphics_pipeline_);
     }
 
     void PipelineRebuild() {
-        render_pipeline_sprite_.Rebuild();
-        render_pipeline_sprite_.UpdateDescriptorSets(0, {sprite_texture_});
+        render_engine_.RebuildGraphicsPipeline(texture_graphics_pipeline_);
     }
 
 private:
     int window_width_;
     int window_height_;
+
     RenderEngine render_engine_{1};
-    RenderPipeline render_pipeline_sprite_{render_engine_, Vertex_2D::getBindingDescription(), Vertex_2D::getAttributeDescriptions(), 0};
+
+    std::shared_ptr<RenderEngine::DescriptorSet> texture_descriptor_set_{};
+    std::shared_ptr<RenderEngine::GraphicsPipeline> texture_graphics_pipeline_{};
 
     IndexedPrimitive sprite_primitive_{};
     TextureSampler sprite_texture_;
