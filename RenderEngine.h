@@ -52,13 +52,13 @@ public:
     struct GraphicsPipeline {
         VkShaderModule vertex_shader_module{};
         VkShaderModule fragment_shader_module{};
-        uint32_t push_constant_size_fragment;
-        VkVertexInputBindingDescription binding_description;
-        std::vector<VkVertexInputAttributeDescription> attribute_descriptions;
-        std::shared_ptr<DescriptorSet> descriptor_set;
-        uint32_t subpass;
-        bool use_depth;
-        bool use_alpha;
+        uint32_t push_constant_size_fragment{};
+        VkVertexInputBindingDescription binding_description{};
+        std::vector<VkVertexInputAttributeDescription> attribute_descriptions{};
+        std::shared_ptr<DescriptorSet> descriptor_set{};
+        uint32_t subpass{};
+        bool use_depth{};
+        bool use_alpha{};
         VkPipelineLayout pipeline_layout{};
         VkPipeline graphics_pipeline{};
     };
@@ -420,6 +420,12 @@ public:
 
         delete[] descriptor_images;
         delete[] buffer_info;
+    }
+
+    void UpdateDescriptorSets(std::shared_ptr<DescriptorSet>& descriptor_set, std::vector<TextureSampler> textures) {
+        for (uint32_t image_index = 0; image_index < image_count_; image_index++) {
+            UpdateDescriptorSet(descriptor_set, image_index, textures);
+        }
     }
 
     std::shared_ptr<GraphicsPipeline> CreateGraphicsPipeline
