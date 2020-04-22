@@ -9,7 +9,6 @@
 
 #include "Utility.h"
 #include "RenderEngine.h"
-#include "RenderPipeline.h"
 #include "Geometry.h"
 #include "Geometry_Color.h"
 #include "Geometry_Texture.h"

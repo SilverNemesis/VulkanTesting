@@ -159,7 +159,6 @@
     <ClInclude Include="Geometry_Texture.h" />
     <ClInclude Include="ModelApplication.h" />
     <ClInclude Include="RenderEngine.h" />
-    <ClInclude Include="RenderPipeline.h" />
     <ClInclude Include="SpriteApplication.h" />
     <ClInclude Include="Utility.h" />
   </ItemGroup>

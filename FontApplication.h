@@ -11,7 +11,6 @@
 
 #include "Utility.h"
 #include "RenderEngine.h"
-#include "RenderPipeline.h"
 #include "Geometry_Text.h"
 
 struct Font {

@@ -5,7 +5,6 @@
     <ClCompile Include="Utility.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="RenderPipeline.h" />
     <ClInclude Include="Geometry.h" />
     <ClInclude Include="Geometry_Color.h" />
     <ClInclude Include="Geometry_Texture.h" />
