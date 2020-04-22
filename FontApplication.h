@@ -34,14 +34,32 @@ public:
             VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
             byte_code = Utility::ReadFile("shaders/text/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            render_pipeline_text_.Initialize(vertex_shader_module, fragment_shader_module, sizeof(UniformBufferObject), sizeof(glm::vec3), 1, 2, false, true);
+
+            texture_uniform_buffer_1_ = render_engine_.CreateUniformBuffer(sizeof(UniformBufferObject));
+            texture_uniform_buffer_2_ = render_engine_.CreateUniformBuffer(sizeof(UniformBufferObject));
+
+            texture_descriptor_set_1_ = render_engine_.CreateDescriptorSet({texture_uniform_buffer_1_}, 1);
+            texture_descriptor_set_2_ = render_engine_.CreateDescriptorSet({texture_uniform_buffer_2_}, 1);
+
+            texture_graphics_pipeline_ = render_engine_.CreateGraphicsPipeline
+            (
+                vertex_shader_module,
+                fragment_shader_module,
+                sizeof(glm::vec3),
+                Vertex_Text::getBindingDescription(),
+                Vertex_Text::getAttributeDescriptions(),
+                texture_descriptor_set_1_,
+                0,
+                false,
+                true
+            );
         }
 
         LoadFont("fonts/Inconsolata/Inconsolata-Regular.ttf", 36, font_1_);
         LoadFont("fonts/katakana/katakana.ttf", 48, font_2_);
 
-        render_pipeline_text_.UpdateDescriptorSets(0, {font_1_.texture});
-        render_pipeline_text_.UpdateDescriptorSets(1, {font_2_.texture});
+        render_engine_.UpdateDescriptorSets(texture_descriptor_set_1_, {font_1_.texture});
+        render_engine_.UpdateDescriptorSets(texture_descriptor_set_2_, {font_2_.texture});
 
         std::vector<glm::vec2> texture_coordinates = {
             {0, 1},
@@ -68,7 +86,13 @@ public:
 
     void Shutdown() {
         vkDeviceWaitIdle(render_engine_.device_);
-        render_pipeline_text_.Destroy();
+
+        render_engine_.DestroyGraphicsPipeline(texture_graphics_pipeline_);
+        render_engine_.DestroyDescriptorSet(texture_descriptor_set_1_);
+        render_engine_.DestroyDescriptorSet(texture_descriptor_set_2_);
+        render_engine_.DestroyUniformBuffer(texture_uniform_buffer_1_);
+        render_engine_.DestroyUniformBuffer(texture_uniform_buffer_2_);
+
         render_engine_.DestroyIndexedPrimitive(font_primitive_1_);
         render_engine_.DestroyIndexedPrimitive(font_primitive_2_);
         DestroyFont(font_1_);
@@ -111,28 +135,24 @@ public:
 
         vkCmdBeginRenderPass(command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
 
-        RenderPipeline& render_pipeline = render_pipeline_text_;
-        const VkDescriptorSet& descriptor_set_1 = render_pipeline.GetDescriptorSet(image_index, 0);
-        const VkDescriptorSet& descriptor_set_2 = render_pipeline.GetDescriptorSet(image_index, 1);
-
-        vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.graphics_pipeline_);
+        vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->graphics_pipeline);
 
         VkBuffer vertex_buffers_1[] = {font_primitive_1_.vertex_buffer_};
         VkDeviceSize offsets_1[] = {0};
         vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers_1, offsets_1);
         vkCmdBindIndexBuffer(command_buffer, font_primitive_1_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set_1, 0, nullptr);
+        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->pipeline_layout, 0, 1, &texture_descriptor_set_1_->descriptor_sets[image_index], 0, nullptr);
         glm::vec3 color_1{1.0, 0.0, 0.0};
-        vkCmdPushConstants(command_buffer, render_pipeline.pipeline_layout_, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(color_1), &color_1);
+        vkCmdPushConstants(command_buffer, texture_graphics_pipeline_->pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(color_1), &color_1);
         vkCmdDrawIndexed(command_buffer, font_primitive_1_.index_count_, 1, 0, 0, 0);
 
         VkBuffer vertex_buffers_2[] = {font_primitive_2_.vertex_buffer_};
         VkDeviceSize offsets_2[] = {0};
         vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers_2, offsets_2);
         vkCmdBindIndexBuffer(command_buffer, font_primitive_2_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pipeline.pipeline_layout_, 0, 1, &descriptor_set_2, 0, nullptr);
+        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->pipeline_layout, 0, 1, &texture_descriptor_set_2_->descriptor_sets[image_index], 0, nullptr);
         glm::vec3 color_2{0.0, 0.0, 1.0};
-        vkCmdPushConstants(command_buffer, render_pipeline.pipeline_layout_, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(color_2), &color_2);
+        vkCmdPushConstants(command_buffer, texture_graphics_pipeline_->pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(color_2), &color_2);
         vkCmdDrawIndexed(command_buffer, font_primitive_2_.index_count_, 1, 0, 0, 0);
 
         vkCmdEndRenderPass(command_buffer);
@@ -150,17 +170,15 @@ public:
         window_width_ = window_width;
         window_height_ = window_height;
         render_engine_.RebuildSwapchain();
+        UpdateProjection();
     }
 
     void PipelineReset() {
-        render_pipeline_text_.Reset();
+        render_engine_.ResetGraphicsPipeline(texture_graphics_pipeline_);
     }
 
     void PipelineRebuild() {
-        render_pipeline_text_.Rebuild();
-        render_pipeline_text_.UpdateDescriptorSets(0, {font_1_.texture});
-        render_pipeline_text_.UpdateDescriptorSets(1, {font_2_.texture});
-        UpdateProjection();
+        render_engine_.RebuildGraphicsPipeline(texture_graphics_pipeline_);
     }
 
 private:
@@ -168,7 +186,12 @@ private:
     int window_height_;
 
     RenderEngine render_engine_{1};
-    RenderPipeline render_pipeline_text_{render_engine_, Vertex_Text::getBindingDescription(), Vertex_Text::getAttributeDescriptions(), 0};
+
+    std::shared_ptr<RenderEngine::UniformBuffer> texture_uniform_buffer_1_{};
+    std::shared_ptr<RenderEngine::DescriptorSet> texture_descriptor_set_1_{};
+    std::shared_ptr<RenderEngine::UniformBuffer> texture_uniform_buffer_2_{};
+    std::shared_ptr<RenderEngine::DescriptorSet> texture_descriptor_set_2_{};
+    std::shared_ptr<RenderEngine::GraphicsPipeline> texture_graphics_pipeline_{};
 
     struct UniformBufferObject {
         glm::mat4 proj;
@@ -184,7 +207,8 @@ private:
 
     void UpdateProjection() {
         uniform_buffer_.proj = glm::ortho(0.0f, static_cast<float>(window_width_), static_cast<float>(window_height_), 0.0f);
-        render_pipeline_text_.UpdateUniformBuffers(&uniform_buffer_);
+        render_engine_.UpdateUniformBuffers(texture_uniform_buffer_1_, &uniform_buffer_);
+        render_engine_.UpdateUniformBuffers(texture_uniform_buffer_2_, &uniform_buffer_);
     }
 
     void LoadTexture(const char* fileName, TextureSampler& texture_sampler) {
