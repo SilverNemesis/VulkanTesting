@@ -63,10 +63,8 @@ public:
         VkPipeline graphics_pipeline{};
     };
 
-    VkSampleCountFlagBits msaa_samples_ = VK_SAMPLE_COUNT_1_BIT;
     VkPhysicalDeviceLimits limits_;
     VkDevice device_ = nullptr;
-    uint32_t image_count_ = 0;
     VkExtent2D swapchain_extent_{};
     std::vector<VkCommandBuffer> command_buffers_{};
     VkRenderPass render_pass_{};
@@ -428,6 +426,20 @@ public:
         }
     }
 
+    VkShaderModule CreateShaderModule(const unsigned char* byte_code, size_t byte_code_length) {
+        VkShaderModuleCreateInfo create_info = {};
+        create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        create_info.codeSize = byte_code_length;
+        create_info.pCode = reinterpret_cast<const uint32_t*>(byte_code);
+
+        VkShaderModule shader_module;
+        if (vkCreateShaderModule(device_, &create_info, nullptr, &shader_module) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create shader module");
+        }
+
+        return shader_module;
+    }
+
     std::shared_ptr<GraphicsPipeline> CreateGraphicsPipeline
     (
         VkShaderModule& vertex_shader_module,
@@ -611,46 +623,6 @@ public:
         graphics_pipeline.reset();
     }
 
-    void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& buffer_memory) {
-        VkBufferCreateInfo buffer_info = {};
-        buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        buffer_info.size = size;
-        buffer_info.usage = usage;
-        buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-        if (vkCreateBuffer(device_, &buffer_info, nullptr, &buffer) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create buffer");
-        }
-
-        VkMemoryRequirements memory_requirements;
-        vkGetBufferMemoryRequirements(device_, buffer, &memory_requirements);
-
-        VkMemoryAllocateInfo allocate_info = {};
-        allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        allocate_info.allocationSize = memory_requirements.size;
-        allocate_info.memoryTypeIndex = FindMemoryType(memory_requirements.memoryTypeBits, properties);
-
-        if (vkAllocateMemory(device_, &allocate_info, nullptr, &buffer_memory) != VK_SUCCESS) {
-            throw std::runtime_error("failed to allocate buffer memory");
-        }
-
-        vkBindBufferMemory(device_, buffer, buffer_memory, 0);
-    }
-
-    VkShaderModule CreateShaderModule(const unsigned char* byte_code, size_t byte_code_length) {
-        VkShaderModuleCreateInfo create_info = {};
-        create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-        create_info.codeSize = byte_code_length;
-        create_info.pCode = reinterpret_cast<const uint32_t*>(byte_code);
-
-        VkShaderModule shader_module;
-        if (vkCreateShaderModule(device_, &create_info, nullptr, &shader_module) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create shader module");
-        }
-
-        return shader_module;
-    }
-
     void CreateTexture(unsigned char* pixels, int texWidth, int texHeight, TextureSampler& texture_sampler) {
         VkDeviceSize image_size = static_cast<VkDeviceSize>(texWidth) * texHeight * 4;
         uint32_t mip_levels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
@@ -828,6 +800,9 @@ private:
     VkPhysicalDeviceProperties physical_device_properties_{};
     const std::vector<const char*> device_extensions_{VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     const std::vector<const char*> validation_layers_{"VK_LAYER_KHRONOS_validation"};
+
+    VkSampleCountFlagBits msaa_samples_ = VK_SAMPLE_COUNT_1_BIT;
+    uint32_t image_count_ = 0;
 
     VkSwapchainKHR swapchain_{};
     std::vector<VkImage> swapchain_images_{};
@@ -1124,6 +1099,32 @@ private:
         if (vkCreateCommandPool(device_, &pool_info, nullptr, &command_pool_) != VK_SUCCESS) {
             throw std::runtime_error("failed to create command pool");
         }
+    }
+
+    void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& buffer_memory) {
+        VkBufferCreateInfo buffer_info = {};
+        buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        buffer_info.size = size;
+        buffer_info.usage = usage;
+        buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        if (vkCreateBuffer(device_, &buffer_info, nullptr, &buffer) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create buffer");
+        }
+
+        VkMemoryRequirements memory_requirements;
+        vkGetBufferMemoryRequirements(device_, buffer, &memory_requirements);
+
+        VkMemoryAllocateInfo allocate_info = {};
+        allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocate_info.allocationSize = memory_requirements.size;
+        allocate_info.memoryTypeIndex = FindMemoryType(memory_requirements.memoryTypeBits, properties);
+
+        if (vkAllocateMemory(device_, &allocate_info, nullptr, &buffer_memory) != VK_SUCCESS) {
+            throw std::runtime_error("failed to allocate buffer memory");
+        }
+
+        vkBindBufferMemory(device_, buffer, buffer_memory, 0);
     }
 
     uint32_t FindMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties) {
