@@ -13,60 +13,16 @@ class SpriteScene : public Scene {
 public:
     SpriteScene(RenderEngine& render_engine) : render_engine_(render_engine) {}
 
-    void Startup() {
-        {
-            std::vector<unsigned char> byte_code{};
-            byte_code = Utility::ReadFile("shaders/ortho2d/vert.spv");
-            VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            byte_code = Utility::ReadFile("shaders/ortho2d/frag.spv");
-            VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-
-            texture_descriptor_set_ = render_engine_.CreateDescriptorSet({}, 1);
-
-            texture_graphics_pipeline_ = render_engine_.CreateGraphicsPipeline
-            (
-                vertex_shader_module,
-                fragment_shader_module,
-                {},
-                Vertex_2D::getBindingDescription(),
-                Vertex_2D::getAttributeDescriptions(),
-                texture_descriptor_set_,
-                0,
-                true,
-                false
-            );
-        }
-
-        LoadTexture(SPRITE_PATH, sprite_texture_);
-
-        render_engine_.UpdateDescriptorSets(texture_descriptor_set_, {sprite_texture_});
-
-        {
-            std::vector<glm::vec2> vertices{};
-            std::vector<std::vector<uint32_t>> faces{};
-            Geometry2D::CreateSquare(0.35f, vertices, faces);
-
-            std::vector<glm::vec2> texture_coordinates = {
-                {0, 0},
-                {1, 0},
-                {1, 1},
-                {0, 1}
-            };
-
-            Geometry_2D geometry_sprite{};
-            geometry_sprite.AddFaces(vertices, faces, texture_coordinates);
-            render_engine_.CreateIndexedPrimitive<Vertex_2D, uint32_t>(geometry_sprite.vertices, geometry_sprite.indices, sprite_primitive_);
-        }
-    }
-
     void Shutdown() {
-        vkDeviceWaitIdle(render_engine_.device_);
+        if (startup_) {
+            vkDeviceWaitIdle(render_engine_.device_);
 
-        render_engine_.DestroyGraphicsPipeline(texture_graphics_pipeline_);
-        render_engine_.DestroyDescriptorSet(texture_descriptor_set_);
+            render_engine_.DestroyGraphicsPipeline(texture_graphics_pipeline_);
+            render_engine_.DestroyDescriptorSet(texture_descriptor_set_);
 
-        render_engine_.DestroyIndexedPrimitive(sprite_primitive_);
-        render_engine_.DestroyTexture(sprite_texture_);
+            render_engine_.DestroyIndexedPrimitive(sprite_primitive_);
+            render_engine_.DestroyTexture(sprite_texture_);
+        }
     }
 
     void OnEntry() {
@@ -147,6 +103,52 @@ private:
 
     IndexedPrimitive sprite_primitive_{};
     TextureSampler sprite_texture_;
+
+    void Startup() {
+        {
+            std::vector<unsigned char> byte_code{};
+            byte_code = Utility::ReadFile("shaders/ortho2d/vert.spv");
+            VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
+            byte_code = Utility::ReadFile("shaders/ortho2d/frag.spv");
+            VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
+
+            texture_descriptor_set_ = render_engine_.CreateDescriptorSet({}, 1);
+
+            texture_graphics_pipeline_ = render_engine_.CreateGraphicsPipeline
+            (
+                vertex_shader_module,
+                fragment_shader_module,
+                {},
+                Vertex_2D::getBindingDescription(),
+                Vertex_2D::getAttributeDescriptions(),
+                texture_descriptor_set_,
+                0,
+                true,
+                false
+            );
+        }
+
+        LoadTexture(SPRITE_PATH, sprite_texture_);
+
+        render_engine_.UpdateDescriptorSets(texture_descriptor_set_, {sprite_texture_});
+
+        {
+            std::vector<glm::vec2> vertices{};
+            std::vector<std::vector<uint32_t>> faces{};
+            Geometry2D::CreateSquare(0.35f, vertices, faces);
+
+            std::vector<glm::vec2> texture_coordinates = {
+                {0, 0},
+                {1, 0},
+                {1, 1},
+                {0, 1}
+            };
+
+            Geometry_2D geometry_sprite{};
+            geometry_sprite.AddFaces(vertices, faces, texture_coordinates);
+            render_engine_.CreateIndexedPrimitive<Vertex_2D, uint32_t>(geometry_sprite.vertices, geometry_sprite.indices, sprite_primitive_);
+        }
+    }
 
     void LoadTexture(const char* fileName, TextureSampler& texture_sampler) {
         Utility::Image texture;

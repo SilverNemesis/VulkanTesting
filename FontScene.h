@@ -18,79 +18,21 @@ class FontScene : public Scene {
 public:
     FontScene(RenderEngine& render_engine) : render_engine_(render_engine) {}
 
-    void Startup() {
-        {
-            std::vector<unsigned char> byte_code{};
-            byte_code = Utility::ReadFile("shaders/text/vert.spv");
-            VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            byte_code = Utility::ReadFile("shaders/text/frag.spv");
-            VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-
-            texture_uniform_buffer_1_ = render_engine_.CreateUniformBuffer(sizeof(CameraMatrix));
-            texture_uniform_buffer_2_ = render_engine_.CreateUniformBuffer(sizeof(CameraMatrix));
-
-            texture_descriptor_set_1_ = render_engine_.CreateDescriptorSet({texture_uniform_buffer_1_}, 1);
-            texture_descriptor_set_2_ = render_engine_.CreateDescriptorSet({texture_uniform_buffer_2_}, 1);
-
-            texture_graphics_pipeline_ = render_engine_.CreateGraphicsPipeline
-            (
-                vertex_shader_module,
-                fragment_shader_module,
-                {
-                    PushConstant{offsetof(PushConstants, color), sizeof(push_constants_.color), VK_SHADER_STAGE_FRAGMENT_BIT},
-                    PushConstant{offsetof(PushConstants, position), sizeof(push_constants_.position), VK_SHADER_STAGE_VERTEX_BIT}
-                },
-                Vertex_Text::getBindingDescription(),
-                Vertex_Text::getAttributeDescriptions(),
-                texture_descriptor_set_1_,
-                0,
-                false,
-                true
-            );
-        }
-
-        LoadFont("fonts/Inconsolata/Inconsolata-Regular.ttf", 36, font_1_);
-        LoadFont("fonts/katakana/katakana.ttf", 48, font_2_);
-
-        render_engine_.UpdateDescriptorSets(texture_descriptor_set_1_, {font_1_.texture});
-        render_engine_.UpdateDescriptorSets(texture_descriptor_set_2_, {font_2_.texture});
-
-        std::vector<glm::vec2> texture_coordinates = {
-            {0, 1},
-            {1, 1},
-            {1, 0},
-            {0, 0}
-        };
-
-        std::vector<glm::vec2> vertices{};
-        std::vector<std::vector<uint32_t>> faces{};
-
-        const char* text = "Hello world!";
-
-        Geometry_Text geometry_text_1{};
-        font_primitive_1_width_ = GetTextLength(font_1_, text);
-        RenderText(font_1_, text, 0, 0, geometry_text_1);
-        render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text_1.vertices, geometry_text_1.indices, font_primitive_1_);
-
-        Geometry_Text geometry_text_2{};
-        font_primitive_2_width_ = GetTextLength(font_2_, text);
-        RenderText(font_2_, text, 0, 0, geometry_text_2);
-        render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text_2.vertices, geometry_text_2.indices, font_primitive_2_);
-    }
-
     void Shutdown() {
-        vkDeviceWaitIdle(render_engine_.device_);
+        if (startup_) {
+            vkDeviceWaitIdle(render_engine_.device_);
 
-        render_engine_.DestroyGraphicsPipeline(texture_graphics_pipeline_);
-        render_engine_.DestroyDescriptorSet(texture_descriptor_set_1_);
-        render_engine_.DestroyDescriptorSet(texture_descriptor_set_2_);
-        render_engine_.DestroyUniformBuffer(texture_uniform_buffer_1_);
-        render_engine_.DestroyUniformBuffer(texture_uniform_buffer_2_);
+            render_engine_.DestroyGraphicsPipeline(texture_graphics_pipeline_);
+            render_engine_.DestroyDescriptorSet(texture_descriptor_set_1_);
+            render_engine_.DestroyDescriptorSet(texture_descriptor_set_2_);
+            render_engine_.DestroyUniformBuffer(texture_uniform_buffer_1_);
+            render_engine_.DestroyUniformBuffer(texture_uniform_buffer_2_);
 
-        render_engine_.DestroyIndexedPrimitive(font_primitive_1_);
-        render_engine_.DestroyIndexedPrimitive(font_primitive_2_);
-        DestroyFont(font_1_);
-        DestroyFont(font_2_);
+            render_engine_.DestroyIndexedPrimitive(font_primitive_1_);
+            render_engine_.DestroyIndexedPrimitive(font_primitive_2_);
+            DestroyFont(font_1_);
+            DestroyFont(font_2_);
+        }
     }
 
     void OnEntry() {
@@ -209,6 +151,66 @@ private:
     uint32_t font_primitive_1_width_{};
     IndexedPrimitive font_primitive_2_{};
     uint32_t font_primitive_2_width_{};
+
+    void Startup() {
+        {
+            std::vector<unsigned char> byte_code{};
+            byte_code = Utility::ReadFile("shaders/text/vert.spv");
+            VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
+            byte_code = Utility::ReadFile("shaders/text/frag.spv");
+            VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
+
+            texture_uniform_buffer_1_ = render_engine_.CreateUniformBuffer(sizeof(CameraMatrix));
+            texture_uniform_buffer_2_ = render_engine_.CreateUniformBuffer(sizeof(CameraMatrix));
+
+            texture_descriptor_set_1_ = render_engine_.CreateDescriptorSet({texture_uniform_buffer_1_}, 1);
+            texture_descriptor_set_2_ = render_engine_.CreateDescriptorSet({texture_uniform_buffer_2_}, 1);
+
+            texture_graphics_pipeline_ = render_engine_.CreateGraphicsPipeline
+            (
+                vertex_shader_module,
+                fragment_shader_module,
+                {
+                    PushConstant{offsetof(PushConstants, color), sizeof(push_constants_.color), VK_SHADER_STAGE_FRAGMENT_BIT},
+                    PushConstant{offsetof(PushConstants, position), sizeof(push_constants_.position), VK_SHADER_STAGE_VERTEX_BIT}
+                },
+                Vertex_Text::getBindingDescription(),
+                Vertex_Text::getAttributeDescriptions(),
+                texture_descriptor_set_1_,
+                0,
+                false,
+                true
+            );
+        }
+
+        LoadFont("fonts/Inconsolata/Inconsolata-Regular.ttf", 36, font_1_);
+        LoadFont("fonts/katakana/katakana.ttf", 48, font_2_);
+
+        render_engine_.UpdateDescriptorSets(texture_descriptor_set_1_, {font_1_.texture});
+        render_engine_.UpdateDescriptorSets(texture_descriptor_set_2_, {font_2_.texture});
+
+        std::vector<glm::vec2> texture_coordinates = {
+            {0, 1},
+            {1, 1},
+            {1, 0},
+            {0, 0}
+        };
+
+        std::vector<glm::vec2> vertices{};
+        std::vector<std::vector<uint32_t>> faces{};
+
+        const char* text = "Hello world!";
+
+        Geometry_Text geometry_text_1{};
+        font_primitive_1_width_ = GetTextLength(font_1_, text);
+        RenderText(font_1_, text, 0, 0, geometry_text_1);
+        render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text_1.vertices, geometry_text_1.indices, font_primitive_1_);
+
+        Geometry_Text geometry_text_2{};
+        font_primitive_2_width_ = GetTextLength(font_2_, text);
+        RenderText(font_2_, text, 0, 0, geometry_text_2);
+        render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text_2.vertices, geometry_text_2.indices, font_primitive_2_);
+    }
 
     void LoadTexture(const char* fileName, TextureSampler& texture_sampler) {
         Utility::Image texture;

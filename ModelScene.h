@@ -14,51 +14,17 @@ class ModelScene : public Scene {
 public:
     ModelScene(RenderEngine& render_engine) : render_engine_(render_engine) {}
 
-    void Startup() {
-        {
-            std::vector<unsigned char> byte_code{};
-            byte_code = Utility::ReadFile("shaders/texture/vert.spv");
-            VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            byte_code = Utility::ReadFile("shaders/texture/frag.spv");
-            VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-
-            texture_uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(UniformBufferObject));
-
-            texture_descriptor_set_ = render_engine_.CreateDescriptorSet({texture_uniform_buffer_}, 1);
-
-            texture_graphics_pipeline_ = render_engine_.CreateGraphicsPipeline
-            (
-                vertex_shader_module,
-                fragment_shader_module,
-                {},
-                Vertex_Texture::getBindingDescription(),
-                Vertex_Texture::getAttributeDescriptions(),
-                texture_descriptor_set_,
-                0,
-                true,
-                false
-            );
-        }
-
-        LoadTexture(TEXTURE_PATH, texture_);
-
-        render_engine_.UpdateDescriptorSets(texture_descriptor_set_, {texture_});
-
-        std::vector<Vertex_Texture> vertices;
-        std::vector<uint32_t> indices;
-        Utility::LoadModel(MODEL_PATH, vertices, indices);
-        render_engine_.CreateIndexedPrimitive<Vertex_Texture, uint32_t>(vertices, indices, primitive_);
-    }
-
     void Shutdown() {
-        vkDeviceWaitIdle(render_engine_.device_);
+        if (startup_) {
+            vkDeviceWaitIdle(render_engine_.device_);
 
-        render_engine_.DestroyGraphicsPipeline(texture_graphics_pipeline_);
-        render_engine_.DestroyDescriptorSet(texture_descriptor_set_);
-        render_engine_.DestroyUniformBuffer(texture_uniform_buffer_);
+            render_engine_.DestroyGraphicsPipeline(texture_graphics_pipeline_);
+            render_engine_.DestroyDescriptorSet(texture_descriptor_set_);
+            render_engine_.DestroyUniformBuffer(texture_uniform_buffer_);
 
-        render_engine_.DestroyIndexedPrimitive(primitive_);
-        render_engine_.DestroyTexture(texture_);
+            render_engine_.DestroyIndexedPrimitive(primitive_);
+            render_engine_.DestroyTexture(texture_);
+        }
     }
 
     void OnEntry() {
@@ -161,6 +127,42 @@ private:
 
     IndexedPrimitive primitive_{};
     TextureSampler texture_;
+
+    void Startup() {
+        {
+            std::vector<unsigned char> byte_code{};
+            byte_code = Utility::ReadFile("shaders/texture/vert.spv");
+            VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
+            byte_code = Utility::ReadFile("shaders/texture/frag.spv");
+            VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
+
+            texture_uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(UniformBufferObject));
+
+            texture_descriptor_set_ = render_engine_.CreateDescriptorSet({texture_uniform_buffer_}, 1);
+
+            texture_graphics_pipeline_ = render_engine_.CreateGraphicsPipeline
+            (
+                vertex_shader_module,
+                fragment_shader_module,
+                {},
+                Vertex_Texture::getBindingDescription(),
+                Vertex_Texture::getAttributeDescriptions(),
+                texture_descriptor_set_,
+                0,
+                true,
+                false
+            );
+        }
+
+        LoadTexture(TEXTURE_PATH, texture_);
+
+        render_engine_.UpdateDescriptorSets(texture_descriptor_set_, {texture_});
+
+        std::vector<Vertex_Texture> vertices;
+        std::vector<uint32_t> indices;
+        Utility::LoadModel(MODEL_PATH, vertices, indices);
+        render_engine_.CreateIndexedPrimitive<Vertex_Texture, uint32_t>(vertices, indices, primitive_);
+    }
 
     void LoadTexture(const char* fileName, TextureSampler& texture_sampler) {
         Utility::Image texture;

@@ -12,103 +12,21 @@ class CubeScene : public Scene {
 public:
     CubeScene(RenderEngine& render_engine) : render_engine_(render_engine) {}
 
-    void Startup() {
-        camera_uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(CameraMatrix));
-
-        {
-            std::vector<unsigned char> byte_code{};
-            byte_code = Utility::ReadFile("shaders/color/vert.spv");
-            VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            byte_code = Utility::ReadFile("shaders/color/frag.spv");
-            VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-
-            color_uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(ModelMatrix));
-
-            color_descriptor_set_ = render_engine_.CreateDescriptorSet({camera_uniform_buffer_, color_uniform_buffer_}, 0);
-
-            color_graphics_pipeline_ = render_engine_.CreateGraphicsPipeline
-            (
-                vertex_shader_module,
-                fragment_shader_module,
-                {},
-                Vertex_Color::getBindingDescription(),
-                Vertex_Color::getAttributeDescriptions(),
-                color_descriptor_set_,
-                0,
-                true,
-                false
-            );
-        }
-
-        {
-            std::vector<unsigned char> byte_code{};
-            byte_code = Utility::ReadFile("shaders/notexture/vert.spv");
-            VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            byte_code = Utility::ReadFile("shaders/notexture/frag.spv");
-            VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-
-            texture_uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(ModelMatrix));
-
-            texture_descriptor_set_ = render_engine_.CreateDescriptorSet({camera_uniform_buffer_, texture_uniform_buffer_}, 0);
-
-            texture_graphics_pipeline_ = render_engine_.CreateGraphicsPipeline
-            (
-                vertex_shader_module,
-                fragment_shader_module,
-                {},
-                Vertex_Texture::getBindingDescription(),
-                Vertex_Texture::getAttributeDescriptions(),
-                texture_descriptor_set_,
-                0,
-                true,
-                false
-            );
-        }
-
-        {
-            std::vector<glm::vec3> vertices{};
-            std::vector<std::vector<uint32_t>> faces{};
-            Geometry::CreateCube(vertices, faces);
-
-            std::vector<glm::vec3> colors = {
-                {1.0, 1.0, 1.0},
-                {1.0, 0.0, 0.0},
-                {0.0, 1.0, 0.0},
-                {0.0, 0.0, 1.0},
-                {1.0, 1.0, 0.0},
-                {1.0, 0.0, 1.0}
-            };
-
-            Geometry_Color geometry_color{};
-            geometry_color.AddFaces(vertices, faces, colors);
-            render_engine_.CreateIndexedPrimitive<Vertex_Color, uint32_t>(geometry_color.vertices, geometry_color.indices, color_primitive_);
-
-            std::vector<glm::vec2> texture_coordinates = {
-                {0, 0},
-                {1, 0},
-                {1, 1},
-                {0, 1}
-            };
-
-            Geometry_Texture geometry_texture{};
-            geometry_texture.AddFaces(vertices, faces, texture_coordinates);
-            render_engine_.CreateIndexedPrimitive<Vertex_Texture, uint32_t>(geometry_texture.vertices, geometry_texture.indices, texture_primitive_);
-        }
-    }
-
     void Shutdown() {
-        vkDeviceWaitIdle(render_engine_.device_);
+        if (startup_) {
+            vkDeviceWaitIdle(render_engine_.device_);
 
-        render_engine_.DestroyGraphicsPipeline(color_graphics_pipeline_);
-        render_engine_.DestroyDescriptorSet(color_descriptor_set_);
-        render_engine_.DestroyUniformBuffer(color_uniform_buffer_);
+            render_engine_.DestroyGraphicsPipeline(color_graphics_pipeline_);
+            render_engine_.DestroyDescriptorSet(color_descriptor_set_);
+            render_engine_.DestroyUniformBuffer(color_uniform_buffer_);
 
-        render_engine_.DestroyGraphicsPipeline(texture_graphics_pipeline_);
-        render_engine_.DestroyDescriptorSet(texture_descriptor_set_);
-        render_engine_.DestroyUniformBuffer(texture_uniform_buffer_);
+            render_engine_.DestroyGraphicsPipeline(texture_graphics_pipeline_);
+            render_engine_.DestroyDescriptorSet(texture_descriptor_set_);
+            render_engine_.DestroyUniformBuffer(texture_uniform_buffer_);
 
-        render_engine_.DestroyIndexedPrimitive(texture_primitive_);
-        render_engine_.DestroyIndexedPrimitive(color_primitive_);
+            render_engine_.DestroyIndexedPrimitive(texture_primitive_);
+            render_engine_.DestroyIndexedPrimitive(color_primitive_);
+        }
     }
 
     void OnEntry() {
@@ -244,4 +162,88 @@ private:
 
     IndexedPrimitive color_primitive_{};
     IndexedPrimitive texture_primitive_{};
+
+    void Startup() {
+        camera_uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(CameraMatrix));
+
+        {
+            std::vector<unsigned char> byte_code{};
+            byte_code = Utility::ReadFile("shaders/color/vert.spv");
+            VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
+            byte_code = Utility::ReadFile("shaders/color/frag.spv");
+            VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
+
+            color_uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(ModelMatrix));
+
+            color_descriptor_set_ = render_engine_.CreateDescriptorSet({camera_uniform_buffer_, color_uniform_buffer_}, 0);
+
+            color_graphics_pipeline_ = render_engine_.CreateGraphicsPipeline
+            (
+                vertex_shader_module,
+                fragment_shader_module,
+                {},
+                Vertex_Color::getBindingDescription(),
+                Vertex_Color::getAttributeDescriptions(),
+                color_descriptor_set_,
+                0,
+                true,
+                false
+            );
+        }
+
+        {
+            std::vector<unsigned char> byte_code{};
+            byte_code = Utility::ReadFile("shaders/notexture/vert.spv");
+            VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
+            byte_code = Utility::ReadFile("shaders/notexture/frag.spv");
+            VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
+
+            texture_uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(ModelMatrix));
+
+            texture_descriptor_set_ = render_engine_.CreateDescriptorSet({camera_uniform_buffer_, texture_uniform_buffer_}, 0);
+
+            texture_graphics_pipeline_ = render_engine_.CreateGraphicsPipeline
+            (
+                vertex_shader_module,
+                fragment_shader_module,
+                {},
+                Vertex_Texture::getBindingDescription(),
+                Vertex_Texture::getAttributeDescriptions(),
+                texture_descriptor_set_,
+                0,
+                true,
+                false
+            );
+        }
+
+        {
+            std::vector<glm::vec3> vertices{};
+            std::vector<std::vector<uint32_t>> faces{};
+            Geometry::CreateCube(vertices, faces);
+
+            std::vector<glm::vec3> colors = {
+                {1.0, 1.0, 1.0},
+                {1.0, 0.0, 0.0},
+                {0.0, 1.0, 0.0},
+                {0.0, 0.0, 1.0},
+                {1.0, 1.0, 0.0},
+                {1.0, 0.0, 1.0}
+            };
+
+            Geometry_Color geometry_color{};
+            geometry_color.AddFaces(vertices, faces, colors);
+            render_engine_.CreateIndexedPrimitive<Vertex_Color, uint32_t>(geometry_color.vertices, geometry_color.indices, color_primitive_);
+
+            std::vector<glm::vec2> texture_coordinates = {
+                {0, 0},
+                {1, 0},
+                {1, 1},
+                {0, 1}
+            };
+
+            Geometry_Texture geometry_texture{};
+            geometry_texture.AddFaces(vertices, faces, texture_coordinates);
+            render_engine_.CreateIndexedPrimitive<Vertex_Texture, uint32_t>(geometry_texture.vertices, geometry_texture.indices, texture_primitive_);
+        }
+    }
 };

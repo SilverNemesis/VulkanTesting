@@ -39,8 +39,8 @@ public:
 
         render_engine_.Initialize(this);
 
-        application_ = scenes_[scene_index_];
-        application_->OnEntry();
+        scene_ = scenes_[scene_index_];
+        scene_->OnEntry();
     }
 
     void Run() {
@@ -67,8 +67,10 @@ public:
     }
 
     void Shutdown() {
-        application_->OnExit();
-        application_->Shutdown();
+        for (auto scene : scenes_) {
+            scene->OnExit();
+            scene->Shutdown();
+        }
         render_engine_.Destroy();
         SDL_DestroyWindow(window_);
         SDL_Quit();
@@ -77,7 +79,7 @@ public:
 private:
     std::vector<Scene*> scenes_{};
     uint32_t scene_index_ = 0;
-    Scene* application_;
+    Scene* scene_;
     SDL_Window* window_ = nullptr;
     int window_width_;
     int window_height_;
@@ -128,10 +130,10 @@ private:
                     }
                     break;
                 case SDL_SCANCODE_TAB:
-                    application_->OnExit();
+                    scene_->OnExit();
                     scene_index_ = (scene_index_ + 1) % scenes_.size();
-                    application_ = scenes_[scene_index_];
-                    application_->OnEntry();
+                    scene_ = scenes_[scene_index_];
+                    scene_->OnEntry();
                     break;
                 }
                 break;
@@ -197,11 +199,11 @@ private:
 
         glm::mat4 view_matrix = glm::lookAt(camera_position_, camera_position_ + camera_forward_, camera_up_);
 
-        application_->Update(view_matrix);
+        scene_->Update(view_matrix);
     }
 
     void Render() {
-        application_->Render();
+        scene_->Render();
     }
 
     void GetRequiredExtensions(std::vector<const char*>& required_extensions) {
@@ -222,11 +224,11 @@ private:
     }
 
     void PipelineReset() {
-        application_->PipelineReset();
+        scene_->PipelineReset();
     }
 
     void PipelineRebuild() {
-        application_->PipelineRebuild();
+        scene_->PipelineRebuild();
     }
 };
 
