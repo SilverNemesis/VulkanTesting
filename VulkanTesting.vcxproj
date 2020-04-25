@@ -160,6 +160,7 @@
     <ClInclude Include="Math.h" />
     <ClInclude Include="ModelApplication.h" />
     <ClInclude Include="RenderEngine.h" />
+    <ClInclude Include="Scene.h" />
     <ClInclude Include="SpriteApplication.h" />
     <ClInclude Include="Utility.h" />
   </ItemGroup>

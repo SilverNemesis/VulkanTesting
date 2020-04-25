@@ -2,19 +2,17 @@
 
 #include "Math.h"
 #include "Utility.h"
+#include "Scene.h"
 #include "RenderEngine.h"
 #include "Geometry.h"
 #include "Geometry_Color.h"
 #include "Geometry_Texture.h"
 
-class CubeApplication {
+class CubeApplication : public Scene {
 public:
-    void Startup(RenderApplication* render_application, int window_width, int window_height) {
-        window_width_ = window_width;
-        window_height_ = window_height;
+    CubeApplication(RenderEngine& render_engine) : render_engine_(render_engine) {}
 
-        render_engine_.Initialize(render_application);
-
+    void Startup() {
         camera_uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(CameraMatrix));
 
         {
@@ -111,8 +109,17 @@ public:
 
         render_engine_.DestroyIndexedPrimitive(texture_primitive_);
         render_engine_.DestroyIndexedPrimitive(color_primitive_);
+    }
 
-        render_engine_.Destroy();
+    void OnEntry() {
+        if (!startup_) {
+            startup_ = true;
+            Startup();
+        }
+        render_engine_.RebuildRenderPass(2);
+    }
+
+    void OnExit() {
     }
 
     void Update(glm::mat4 view_matrix) {
@@ -197,12 +204,6 @@ public:
         render_engine_.PresentImage(image_index);
     }
 
-    void Resize(int window_width, int window_height) {
-        window_width_ = window_width;
-        window_height_ = window_height;
-        render_engine_.RebuildSwapchain();
-    }
-
     void PipelineReset() {
         render_engine_.ResetGraphicsPipeline(texture_graphics_pipeline_);
         render_engine_.ResetGraphicsPipeline(color_graphics_pipeline_);
@@ -214,10 +215,8 @@ public:
     }
 
 private:
-    int window_width_;
-    int window_height_;
-
-    RenderEngine render_engine_{2};
+    RenderEngine& render_engine_;
+    bool startup_ = false;
 
     std::shared_ptr<RenderEngine::UniformBuffer> camera_uniform_buffer_{};
 

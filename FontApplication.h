@@ -4,6 +4,7 @@
 
 #include "Math.h"
 #include "Utility.h"
+#include "Scene.h"
 #include "RenderEngine.h"
 #include "Geometry_Text.h"
 
@@ -13,14 +14,11 @@ struct Font {
     std::map<unsigned char, Utility::FontCharacter> characters;
 };
 
-class FontApplication {
+class FontApplication : public Scene {
 public:
-    void Startup(RenderApplication* render_application, int window_width, int window_height) {
-        window_width_ = window_width;
-        window_height_ = window_height;
+    FontApplication(RenderEngine& render_engine) : render_engine_(render_engine) {}
 
-        render_engine_.Initialize(render_application);
-
+    void Startup() {
         {
             std::vector<unsigned char> byte_code{};
             byte_code = Utility::ReadFile("shaders/text/vert.spv");
@@ -78,8 +76,6 @@ public:
         font_primitive_2_width_ = GetTextLength(font_2_, text);
         RenderText(font_2_, text, 0, 0, geometry_text_2);
         render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text_2.vertices, geometry_text_2.indices, font_primitive_2_);
-
-        UpdateProjection();
     }
 
     void Shutdown() {
@@ -95,7 +91,17 @@ public:
         render_engine_.DestroyIndexedPrimitive(font_primitive_2_);
         DestroyFont(font_1_);
         DestroyFont(font_2_);
-        render_engine_.Destroy();
+    }
+
+    void OnEntry() {
+        if (!startup_) {
+            startup_ = true;
+            Startup();
+        }
+        render_engine_.RebuildRenderPass(1);
+    }
+
+    void OnExit() {
     }
 
     void Update(glm::mat4 view_matrix) {
@@ -109,6 +115,9 @@ public:
         }
 
         VkCommandBuffer& command_buffer = render_engine_.command_buffers_[image_index];
+
+        uint32_t window_width = render_engine_.swapchain_extent_.width;
+        uint32_t window_height = render_engine_.swapchain_extent_.height;
 
         VkCommandBufferBeginInfo begin_info = {};
         begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -138,14 +147,14 @@ public:
         vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->pipeline_layout, 0, 1, &texture_descriptor_set_1_->descriptor_sets[image_index], 0, nullptr);
         push_constants_.color = {1.0, 0.0, 0.0};
         vkCmdPushConstants(command_buffer, texture_graphics_pipeline_->pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, offsetof(PushConstants, color), sizeof(push_constants_.color), &push_constants_.color);
-        push_constants_.position = {window_width_ / 2 - font_primitive_1_width_, window_height_ / 2};
+        push_constants_.position = {window_width / 2 - font_primitive_1_width_, window_height / 2};
         vkCmdPushConstants(command_buffer, texture_graphics_pipeline_->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, offsetof(PushConstants, position), sizeof(push_constants_.position), &push_constants_.position);
         render_engine_.DrawPrimitive(command_buffer, font_primitive_1_);
 
         vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->pipeline_layout, 0, 1, &texture_descriptor_set_2_->descriptor_sets[image_index], 0, nullptr);
         push_constants_.color = {0.0, 0.0, 1.0};
         vkCmdPushConstants(command_buffer, texture_graphics_pipeline_->pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, offsetof(PushConstants, color), sizeof(push_constants_.color), &push_constants_.color);
-        push_constants_.position = {window_width_ / 2, window_height_ / 2};
+        push_constants_.position = {window_width / 2, window_height / 2};
         vkCmdPushConstants(command_buffer, texture_graphics_pipeline_->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, offsetof(PushConstants, position), sizeof(push_constants_.position), &push_constants_.position);
         render_engine_.DrawPrimitive(command_buffer, font_primitive_2_);
 
@@ -155,16 +164,13 @@ public:
             throw std::runtime_error("failed to record command buffer");
         }
 
+        uniform_buffer_.proj = glm::ortho(0.0f, static_cast<float>(window_width), static_cast<float>(window_height), 0.0f);
+        render_engine_.UpdateUniformBuffers(texture_uniform_buffer_1_, &uniform_buffer_);
+        render_engine_.UpdateUniformBuffers(texture_uniform_buffer_2_, &uniform_buffer_);
+
         render_engine_.SubmitDrawCommands(image_index);
 
         render_engine_.PresentImage(image_index);
-    }
-
-    void Resize(int window_width, int window_height) {
-        window_width_ = window_width;
-        window_height_ = window_height;
-        render_engine_.RebuildSwapchain();
-        UpdateProjection();
     }
 
     void PipelineReset() {
@@ -176,10 +182,8 @@ public:
     }
 
 private:
-    int window_width_;
-    int window_height_;
-
-    RenderEngine render_engine_{1};
+    RenderEngine& render_engine_;
+    bool startup_ = false;
 
     std::shared_ptr<RenderEngine::UniformBuffer> texture_uniform_buffer_1_{};
     std::shared_ptr<RenderEngine::DescriptorSet> texture_descriptor_set_1_{};
@@ -205,12 +209,6 @@ private:
     uint32_t font_primitive_1_width_{};
     IndexedPrimitive font_primitive_2_{};
     uint32_t font_primitive_2_width_{};
-
-    void UpdateProjection() {
-        uniform_buffer_.proj = glm::ortho(0.0f, static_cast<float>(window_width_), static_cast<float>(window_height_), 0.0f);
-        render_engine_.UpdateUniformBuffers(texture_uniform_buffer_1_, &uniform_buffer_);
-        render_engine_.UpdateUniformBuffers(texture_uniform_buffer_2_, &uniform_buffer_);
-    }
 
     void LoadTexture(const char* fileName, TextureSampler& texture_sampler) {
         Utility::Image texture;

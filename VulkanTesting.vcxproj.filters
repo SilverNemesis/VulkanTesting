@@ -17,6 +17,7 @@
     <ClInclude Include="Utility.h" />
     <ClInclude Include="FontApplication.h" />
     <ClInclude Include="Math.h" />
+    <ClInclude Include="Scene.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="shaders">

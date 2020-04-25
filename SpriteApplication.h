@@ -2,20 +2,18 @@
 
 #include "Math.h"
 #include "Utility.h"
+#include "Scene.h"
 #include "RenderEngine.h"
 #include "Geometry.h"
 #include "Geometry_2D.h"
 
 static const char* SPRITE_PATH = "textures/texture.jpg";
 
-class SpriteApplication {
+class SpriteApplication : public Scene {
 public:
-    void Startup(RenderApplication* render_application, int window_width, int window_height) {
-        window_width_ = window_width;
-        window_height_ = window_height;
+    SpriteApplication(RenderEngine& render_engine) : render_engine_(render_engine) {}
 
-        render_engine_.Initialize(render_application);
-
+    void Startup() {
         {
             std::vector<unsigned char> byte_code{};
             byte_code = Utility::ReadFile("shaders/ortho2d/vert.spv");
@@ -69,7 +67,17 @@ public:
 
         render_engine_.DestroyIndexedPrimitive(sprite_primitive_);
         render_engine_.DestroyTexture(sprite_texture_);
-        render_engine_.Destroy();
+    }
+
+    void OnEntry() {
+        if (!startup_) {
+            startup_ = true;
+            Startup();
+        }
+        render_engine_.RebuildRenderPass(1);
+    }
+
+    void OnExit() {
     }
 
     void Update(glm::mat4 view_matrix) {
@@ -122,12 +130,6 @@ public:
         render_engine_.PresentImage(image_index);
     }
 
-    void Resize(int window_width, int window_height) {
-        window_width_ = window_width;
-        window_height_ = window_height;
-        render_engine_.RebuildSwapchain();
-    }
-
     void PipelineReset() {
         render_engine_.ResetGraphicsPipeline(texture_graphics_pipeline_);
     }
@@ -137,10 +139,8 @@ public:
     }
 
 private:
-    int window_width_;
-    int window_height_;
-
-    RenderEngine render_engine_{1};
+    RenderEngine& render_engine_;
+    bool startup_ = false;
 
     std::shared_ptr<RenderEngine::DescriptorSet> texture_descriptor_set_{};
     std::shared_ptr<RenderEngine::GraphicsPipeline> texture_graphics_pipeline_{};

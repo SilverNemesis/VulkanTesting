@@ -10,6 +10,7 @@
 #endif
 
 #include "Math.h"
+#include "Scene.h"
 #include "RenderEngine.h"
 #include "CubeApplication.h"
 #include "ModelApplication.h"
@@ -31,7 +32,15 @@ public:
             throw std::runtime_error(SDL_GetError());
         }
 
-        application_.Startup(this, window_width_, window_height_);
+        scenes_.push_back(new CubeApplication{render_engine_});
+        scenes_.push_back(new FontApplication{render_engine_});
+        scenes_.push_back(new ModelApplication{render_engine_});
+        scenes_.push_back(new SpriteApplication{render_engine_});
+
+        render_engine_.Initialize(this);
+
+        application_ = scenes_[scene_index_];
+        application_->OnEntry();
     }
 
     void Run() {
@@ -58,14 +67,18 @@ public:
     }
 
     void Shutdown() {
-        application_.Shutdown();
+        application_->OnExit();
+        application_->Shutdown();
+        render_engine_.Destroy();
         SDL_DestroyWindow(window_);
         SDL_Quit();
     }
 
 private:
-    CubeApplication application_;
-    SDL_Window* window_ = NULL;
+    std::vector<Scene*> scenes_{};
+    uint32_t scene_index_ = 0;
+    Scene* application_;
+    SDL_Window* window_ = nullptr;
     int window_width_;
     int window_height_;
 
@@ -81,6 +94,8 @@ private:
     glm::vec3 camera_up_{0.0f, -1.0f, 0.0f};
     float camera_yaw_ = 0.0;
     float camera_pitch_ = 0.0;
+
+    RenderEngine render_engine_{};
 
     void ProcessInput() {
         SDL_Event event;
@@ -109,8 +124,14 @@ private:
                     } else {
                         mouse_capture_ = true;
                         SDL_SetRelativeMouseMode(SDL_TRUE);
-                        SDL_GetRelativeMouseState(NULL, NULL);
+                        SDL_GetRelativeMouseState(nullptr, nullptr);
                     }
+                    break;
+                case SDL_SCANCODE_TAB:
+                    application_->OnExit();
+                    scene_index_ = (scene_index_ + 1) % scenes_.size();
+                    application_ = scenes_[scene_index_];
+                    application_->OnEntry();
                     break;
                 }
                 break;
@@ -123,7 +144,7 @@ private:
                 switch (event.window.event) {
                 case SDL_WINDOWEVENT_RESIZED:
                     SDL_Vulkan_GetDrawableSize(window_, &window_width_, &window_height_);
-                    application_.Resize(window_width_, window_height_);
+                    render_engine_.RebuildSwapchain();
                     break;
                 case SDL_WINDOWEVENT_MINIMIZED:
                     window_minimized_ = true;
@@ -176,11 +197,11 @@ private:
 
         glm::mat4 view_matrix = glm::lookAt(camera_position_, camera_position_ + camera_forward_, camera_up_);
 
-        application_.Update(view_matrix);
+        application_->Update(view_matrix);
     }
 
     void Render() {
-        application_.Render();
+        application_->Render();
     }
 
     void GetRequiredExtensions(std::vector<const char*>& required_extensions) {
@@ -201,11 +222,11 @@ private:
     }
 
     void PipelineReset() {
-        application_.PipelineReset();
+        application_->PipelineReset();
     }
 
     void PipelineRebuild() {
-        application_.PipelineRebuild();
+        application_->PipelineRebuild();
     }
 };
 

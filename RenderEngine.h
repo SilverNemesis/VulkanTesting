@@ -76,8 +76,6 @@ public:
     VkRenderPass render_pass_{};
     std::vector<VkFramebuffer> framebuffers_{};
 
-    RenderEngine(uint32_t subpass_count) : subpass_count_(subpass_count) {}
-
     void Initialize(RenderApplication* render_application) {
 #ifdef _DEBUG
         debug_layers_ = true;
@@ -109,21 +107,16 @@ public:
         present_mode_ = ChooseSwapPresentMode(present_modes);
         depth_format_ = FindDepthFormat();
         CreateSwapchain(window_width, window_height);
-        CreateRenderPass();
-        CreateFramebuffers(render_pass_, framebuffers_);
         CreateSyncObjects();
     }
 
     void Destroy() {
+        DestroyRenderPass();
         for (size_t i = 0; i < max_frames_in_flight_; i++) {
             vkDestroySemaphore(device_, render_finished_semaphores_[i], nullptr);
             vkDestroySemaphore(device_, image_available_semaphores_[i], nullptr);
             vkDestroyFence(device_, in_flight_fences_[i], nullptr);
         }
-        for (auto framebuffer : framebuffers_) {
-            vkDestroyFramebuffer(device_, framebuffer, nullptr);
-        }
-        vkDestroyRenderPass(device_, render_pass_, nullptr);
         DestroySwapchain();
         vkDestroyCommandPool(device_, command_pool_, nullptr);
         vkDestroyDevice(device_, nullptr);
@@ -132,6 +125,15 @@ public:
             DestroyDebugUtilsMessengerEXT(instance_, debug_messenger_, nullptr);
         }
         vkDestroyInstance(instance_, nullptr);
+    }
+
+    void RebuildRenderPass(uint32_t subpass_count) {
+        vkDeviceWaitIdle(device_);
+        subpass_count_ = subpass_count;
+        CreateRenderPass();
+        CreateFramebuffers(render_pass_, framebuffers_);
+        render_application_->PipelineReset();
+        render_application_->PipelineRebuild();
     }
 
     void RebuildSwapchain() {
@@ -481,6 +483,10 @@ public:
     }
 
     void RebuildGraphicsPipeline(std::shared_ptr<GraphicsPipeline>& graphics_pipeline) {
+        if (subpass_count_ == 0) {
+            return;
+        }
+
         VkPipelineShaderStageCreateInfo vertex_shader_stage_info = {};
         vertex_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         vertex_shader_stage_info.stage = VK_SHADER_STAGE_VERTEX_BIT;
@@ -783,7 +789,7 @@ public:
     }
 
 private:
-    uint32_t subpass_count_;
+    uint32_t subpass_count_ = 0;
     uint32_t max_frames_in_flight_{2};
     RenderApplication* render_application_{};
     bool debug_layers_ = false;
@@ -1448,7 +1454,7 @@ private:
         }
     }
 
-    void CreateFramebuffers(VkRenderPass render_pass, std::vector<VkFramebuffer>& framebuffers) {
+    void CreateFramebuffers(VkRenderPass& render_pass, std::vector<VkFramebuffer>& framebuffers) {
         framebuffers.resize(swapchain_image_views_.size());
 
         for (size_t i = 0; i < swapchain_image_views_.size(); i++) {
@@ -1470,6 +1476,20 @@ private:
             if (vkCreateFramebuffer(device_, &framebuffer_info, nullptr, &framebuffers[i]) != VK_SUCCESS) {
                 throw std::runtime_error("failed to create framebuffer");
             }
+        }
+    }
+
+    void DestroyRenderPass() {
+        for (auto& framebuffer : framebuffers_) {
+            if (framebuffer != nullptr) {
+                vkDestroyFramebuffer(device_, framebuffer, nullptr);
+                framebuffer = nullptr;
+            }
+        }
+        framebuffers_.clear();
+        if (render_pass_ != nullptr) {
+            vkDestroyRenderPass(device_, render_pass_, nullptr);
+            render_pass_ = nullptr;
         }
     }
 
