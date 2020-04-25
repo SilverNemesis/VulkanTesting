@@ -12,7 +12,7 @@ namespace Utility {
         unsigned char* pixels;
     };
 
-    void LoadImage(const char* fileName, Image& texture);
+    void LoadImage(const char* file_name, Image& texture);
 
     void FreeImage(Image& texture);
 
@@ -36,7 +36,7 @@ namespace Utility {
 
     void FreeFontImage(FontImage& font);
 
-    void LoadModel(const char* fileName, std::vector<Vertex_Texture>& vertices, std::vector<uint32_t>& indices);
+    void LoadModel(const char* file_name, std::vector<Vertex_Texture>& vertices, std::vector<uint32_t>& indices);
 
     std::vector<unsigned char> ReadFile(const std::string& file_name);
 }

@@ -212,9 +212,9 @@ private:
         render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text_2.vertices, geometry_text_2.indices, font_primitive_2_);
     }
 
-    void LoadTexture(const char* fileName, TextureSampler& texture_sampler) {
+    void LoadTexture(const char* file_name, TextureSampler& texture_sampler) {
         Utility::Image texture;
-        Utility::LoadImage(fileName, texture);
+        Utility::LoadImage(file_name, texture);
 
         render_engine_.CreateTexture(texture.pixels, texture.texture_width, texture.texture_height, texture_sampler);
 

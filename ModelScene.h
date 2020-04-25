@@ -1,5 +1,8 @@
 #pragma once
 
+#include <thread>
+#include <atomic>
+
 #include "Math.h"
 #include "Utility.h"
 #include "Scene.h"
@@ -84,9 +87,11 @@ public:
 
         vkCmdBeginRenderPass(command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
 
-        vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->graphics_pipeline);
-        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->pipeline_layout, 0, 1, &texture_descriptor_set_->descriptor_sets[image_index], 0, nullptr);
-        render_engine_.DrawPrimitive(command_buffer, primitive_);
+        if (model_loaded_) {
+            vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->graphics_pipeline);
+            vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->pipeline_layout, 0, 1, &texture_descriptor_set_->descriptor_sets[image_index], 0, nullptr);
+            render_engine_.DrawPrimitive(command_buffer, primitive_);
+        }
 
         vkCmdEndRenderPass(command_buffer);
 
@@ -125,8 +130,10 @@ private:
 
     UniformBufferObject uniform_buffer_{};
 
+    std::thread thread_object_;
+    std::atomic<bool> model_loaded_ = false;
     IndexedPrimitive primitive_{};
-    TextureSampler texture_;
+    TextureSampler texture_{};
 
     void Startup() {
         {
@@ -158,15 +165,18 @@ private:
 
         render_engine_.UpdateDescriptorSets(texture_descriptor_set_, {texture_});
 
-        std::vector<Vertex_Texture> vertices;
-        std::vector<uint32_t> indices;
-        Utility::LoadModel(MODEL_PATH, vertices, indices);
-        render_engine_.CreateIndexedPrimitive<Vertex_Texture, uint32_t>(vertices, indices, primitive_);
+        thread_object_ = std::thread([this]() {
+            std::vector<Vertex_Texture> vertices{};
+            std::vector<uint32_t> indices{};
+            Utility::LoadModel(MODEL_PATH, vertices, indices);
+            render_engine_.CreateIndexedPrimitive<Vertex_Texture, uint32_t>(vertices, indices, primitive_);
+            model_loaded_ = true;
+            });
     }
 
-    void LoadTexture(const char* fileName, TextureSampler& texture_sampler) {
+    void LoadTexture(const char* file_name, TextureSampler& texture_sampler) {
         Utility::Image texture;
-        Utility::LoadImage(fileName, texture);
+        Utility::LoadImage(file_name, texture);
 
         render_engine_.CreateTexture(texture.pixels, texture.texture_width, texture.texture_height, texture_sampler);
 

@@ -13,9 +13,9 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
-void Utility::LoadImage(const char* fileName, Image& texture) {
+void Utility::LoadImage(const char* file_name, Image& texture) {
     int texture_channels;
-    texture.pixels = stbi_load(fileName, &texture.texture_width, &texture.texture_height, &texture_channels, STBI_rgb_alpha);
+    texture.pixels = stbi_load(file_name, &texture.texture_width, &texture.texture_height, &texture_channels, STBI_rgb_alpha);
 
     if (!texture.pixels) {
         throw std::runtime_error("failed to load texture image");
@@ -26,13 +26,13 @@ void Utility::FreeImage(Image& texture) {
     stbi_image_free(texture.pixels);
 }
 
-void Utility::LoadModel(const char* fileName, std::vector<Vertex_Texture>& vertices, std::vector<uint32_t>& indices) {
+void Utility::LoadModel(const char* file_name, std::vector<Vertex_Texture>& vertices, std::vector<uint32_t>& indices) {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
     std::vector<tinyobj::material_t> materials;
     std::string warn, err;
 
-    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, fileName)) {
+    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, file_name)) {
         throw std::runtime_error(warn + err);
     }
 
