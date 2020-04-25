@@ -172,37 +172,25 @@ public:
 
         vkCmdBeginRenderPass(command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
 
-        render_engine_.UpdateUniformBuffer(camera_uniform_buffer_, image_index, &camera_);
-
-        {
-            render_engine_.UpdateUniformBuffer(color_uniform_buffer_, image_index, &color_model_);
-            vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, color_graphics_pipeline_->graphics_pipeline);
-            VkBuffer vertex_buffers_1[] = {color_primitive_.vertex_buffer_};
-            VkDeviceSize offsets_1[] = {0};
-            vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers_1, offsets_1);
-            vkCmdBindIndexBuffer(command_buffer, color_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-            vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, color_graphics_pipeline_->pipeline_layout, 0, 1, &color_descriptor_set_->descriptor_sets[image_index], 0, nullptr);
-            vkCmdDrawIndexed(command_buffer, color_primitive_.index_count_, 1, 0, 0, 0);
-        }
+        vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, color_graphics_pipeline_->graphics_pipeline);
+        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, color_graphics_pipeline_->pipeline_layout, 0, 1, &color_descriptor_set_->descriptor_sets[image_index], 0, nullptr);
+        render_engine_.DrawPrimitive(command_buffer, color_primitive_);
 
         vkCmdNextSubpass(command_buffer, VK_SUBPASS_CONTENTS_INLINE);
 
-        {
-            render_engine_.UpdateUniformBuffer(texture_uniform_buffer_, image_index, &texture_model_);
-            vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->graphics_pipeline);
-            VkBuffer vertex_buffers_2[] = {texture_primitive_.vertex_buffer_};
-            VkDeviceSize offsets_2[] = {0};
-            vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers_2, offsets_2);
-            vkCmdBindIndexBuffer(command_buffer, texture_primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-            vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->pipeline_layout, 0, 1, &texture_descriptor_set_->descriptor_sets[image_index], 0, nullptr);
-            vkCmdDrawIndexed(command_buffer, texture_primitive_.index_count_, 1, 0, 0, 0);
-        }
+        vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->graphics_pipeline);
+        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->pipeline_layout, 0, 1, &texture_descriptor_set_->descriptor_sets[image_index], 0, nullptr);
+        render_engine_.DrawPrimitive(command_buffer, texture_primitive_);
 
         vkCmdEndRenderPass(command_buffer);
 
         if (vkEndCommandBuffer(command_buffer) != VK_SUCCESS) {
             throw std::runtime_error("failed to record command buffer");
         }
+
+        render_engine_.UpdateUniformBuffer(camera_uniform_buffer_, image_index, &camera_);
+        render_engine_.UpdateUniformBuffer(color_uniform_buffer_, image_index, &color_model_);
+        render_engine_.UpdateUniformBuffer(texture_uniform_buffer_, image_index, &texture_model_);
 
         render_engine_.SubmitDrawCommands(image_index);
 

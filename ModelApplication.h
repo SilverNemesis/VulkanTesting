@@ -110,20 +110,17 @@ public:
 
         vkCmdBeginRenderPass(command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
 
-        render_engine_.UpdateUniformBuffer(texture_uniform_buffer_, image_index, &uniform_buffer_);
         vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->graphics_pipeline);
-        VkBuffer vertex_buffers_1[] = {primitive_.vertex_buffer_};
-        VkDeviceSize offsets_1[] = {0};
-        vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers_1, offsets_1);
-        vkCmdBindIndexBuffer(command_buffer, primitive_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
         vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->pipeline_layout, 0, 1, &texture_descriptor_set_->descriptor_sets[image_index], 0, nullptr);
-        vkCmdDrawIndexed(command_buffer, primitive_.index_count_, 1, 0, 0, 0);
+        render_engine_.DrawPrimitive(command_buffer, primitive_);
 
         vkCmdEndRenderPass(command_buffer);
 
         if (vkEndCommandBuffer(command_buffer) != VK_SUCCESS) {
             throw std::runtime_error("failed to record command buffer");
         }
+
+        render_engine_.UpdateUniformBuffer(texture_uniform_buffer_, image_index, &uniform_buffer_);
 
         render_engine_.SubmitDrawCommands(image_index);
 

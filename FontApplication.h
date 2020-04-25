@@ -130,23 +130,17 @@ public:
 
         vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->graphics_pipeline);
 
-        VkBuffer vertex_buffers_1[] = {font_primitive_1_.vertex_buffer_};
-        VkDeviceSize offsets_1[] = {0};
-        vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers_1, offsets_1);
-        vkCmdBindIndexBuffer(command_buffer, font_primitive_1_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
         vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->pipeline_layout, 0, 1, &texture_descriptor_set_1_->descriptor_sets[image_index], 0, nullptr);
         glm::vec3 color_1{1.0, 0.0, 0.0};
         vkCmdPushConstants(command_buffer, texture_graphics_pipeline_->pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(color_1), &color_1);
-        vkCmdDrawIndexed(command_buffer, font_primitive_1_.index_count_, 1, 0, 0, 0);
 
-        VkBuffer vertex_buffers_2[] = {font_primitive_2_.vertex_buffer_};
-        VkDeviceSize offsets_2[] = {0};
-        vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers_2, offsets_2);
-        vkCmdBindIndexBuffer(command_buffer, font_primitive_2_.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
+        render_engine_.DrawPrimitive(command_buffer, font_primitive_1_);
+
         vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->pipeline_layout, 0, 1, &texture_descriptor_set_2_->descriptor_sets[image_index], 0, nullptr);
         glm::vec3 color_2{0.0, 0.0, 1.0};
         vkCmdPushConstants(command_buffer, texture_graphics_pipeline_->pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(color_2), &color_2);
-        vkCmdDrawIndexed(command_buffer, font_primitive_2_.index_count_, 1, 0, 0, 0);
+
+        render_engine_.DrawPrimitive(command_buffer, font_primitive_2_);
 
         vkCmdEndRenderPass(command_buffer);
 
