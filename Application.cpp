@@ -222,14 +222,6 @@ private:
     void GetDrawableSize(int& window_width, int& window_height) {
         SDL_Vulkan_GetDrawableSize(window_, &window_width, &window_height);
     }
-
-    void PipelineReset() {
-        scene_->PipelineReset();
-    }
-
-    void PipelineRebuild() {
-        scene_->PipelineRebuild();
-    }
 };
 
 int main(int argc, char* argv[]) {

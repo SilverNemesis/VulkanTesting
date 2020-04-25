@@ -40,7 +40,6 @@ public:
             startup_ = true;
             Startup();
         }
-        render_engine_.RebuildRenderPass(1);
     }
 
     void OnExit() {
@@ -70,8 +69,8 @@ public:
 
         VkRenderPassBeginInfo render_pass_info = {};
         render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        render_pass_info.renderPass = render_engine_.render_pass_;
-        render_pass_info.framebuffer = render_engine_.framebuffers_[image_index];
+        render_pass_info.renderPass = render_pass_->render_pass_;
+        render_pass_info.framebuffer = render_pass_->framebuffers_[image_index];
         render_pass_info.renderArea.offset = {0, 0};
         render_pass_info.renderArea.extent = render_engine_.swapchain_extent_;
 
@@ -115,14 +114,6 @@ public:
         render_engine_.PresentImage(image_index);
     }
 
-    void PipelineReset() {
-        render_engine_.ResetGraphicsPipeline(texture_graphics_pipeline_);
-    }
-
-    void PipelineRebuild() {
-        render_engine_.RebuildGraphicsPipeline(texture_graphics_pipeline_);
-    }
-
 private:
     RenderEngine& render_engine_;
     bool startup_ = false;
@@ -132,6 +123,7 @@ private:
     std::shared_ptr<RenderEngine::UniformBuffer> texture_uniform_buffer_2_{};
     std::shared_ptr<RenderEngine::DescriptorSet> texture_descriptor_set_2_{};
     std::shared_ptr<RenderEngine::GraphicsPipeline> texture_graphics_pipeline_{};
+    std::shared_ptr<RenderEngine::RenderPass> render_pass_{};
 
     struct CameraMatrix {
         glm::mat4 proj;
@@ -153,6 +145,8 @@ private:
     uint32_t font_primitive_2_width_{};
 
     void Startup() {
+        render_pass_ = render_engine_.CreateRenderPass();
+
         {
             std::vector<unsigned char> byte_code{};
             byte_code = Utility::ReadFile("shaders/text/vert.spv");
@@ -168,6 +162,7 @@ private:
 
             texture_graphics_pipeline_ = render_engine_.CreateGraphicsPipeline
             (
+                render_pass_,
                 vertex_shader_module,
                 fragment_shader_module,
                 {
