@@ -157,6 +157,7 @@
     <ClInclude Include="Geometry_Color.h" />
     <ClInclude Include="Geometry_Text.h" />
     <ClInclude Include="Geometry_Texture.h" />
+    <ClInclude Include="Math.h" />
     <ClInclude Include="ModelApplication.h" />
     <ClInclude Include="RenderEngine.h" />
     <ClInclude Include="SpriteApplication.h" />

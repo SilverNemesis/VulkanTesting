@@ -16,6 +16,7 @@
     <ClInclude Include="SpriteApplication.h" />
     <ClInclude Include="Utility.h" />
     <ClInclude Include="FontApplication.h" />
+    <ClInclude Include="Math.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="shaders">
