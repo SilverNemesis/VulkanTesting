@@ -141,8 +141,10 @@ private:
 
     IndexedPrimitive font_primitive_1_{};
     uint32_t font_primitive_1_width_{};
+    uint32_t font_primitive_1_height_{};
     IndexedPrimitive font_primitive_2_{};
     uint32_t font_primitive_2_width_{};
+    uint32_t font_primitive_2_height_{};
 
     void Startup() {
         render_pass_ = render_engine_.CreateRenderPass();
@@ -197,12 +199,12 @@ private:
         const char* text = "Hello world!";
 
         Geometry_Text geometry_text_1{};
-        font_primitive_1_width_ = GetTextLength(font_1_, text);
+        GetTextSize(font_1_, text, font_primitive_1_width_, font_primitive_1_height_);
         RenderText(font_1_, text, 0, 0, geometry_text_1);
         render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text_1.vertices, geometry_text_1.indices, font_primitive_1_);
 
         Geometry_Text geometry_text_2{};
-        font_primitive_2_width_ = GetTextLength(font_2_, text);
+        GetTextSize(font_2_, text, font_primitive_2_width_, font_primitive_2_height_);
         RenderText(font_2_, text, 0, 0, geometry_text_2);
         render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text_2.vertices, geometry_text_2.indices, font_primitive_2_);
     }
@@ -252,13 +254,17 @@ private:
         }
     }
 
-    uint32_t GetTextLength(Font& font, const char* text) {
-        uint32_t size = 0;
+    void GetTextSize(Font& font, const char* text, uint32_t& width, uint32_t& height) {
+        width = 0;
+        height = 0;
         for (const char* cur = text; *cur != 0; cur++) {
             Utility::FontCharacter ch = font.characters[*cur];
-            size += ch.a;
+            uint32_t h = static_cast<uint32_t>(ch.h);
+            if (h > height) {
+                height = h;
+            }
+            width += ch.a;
         }
-        return size;
     }
 
     void LoadFont(const char* file_name, uint32_t font_size, Font& font) {
