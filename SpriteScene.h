@@ -5,34 +5,31 @@
 #include "Scene.h"
 #include "RenderEngine.h"
 #include "Geometry.h"
-#include "Geometry_Texture.h"
+#include "Geometry_2D.h"
 
-static const char* MODEL_PATH = "models/chalet.obj";
-static const char* TEXTURE_PATH = "textures/chalet.jpg";
+static const char* SPRITE_PATH = "textures/texture.jpg";
 
-class ModelApplication : public Scene {
+class SpriteScene : public Scene {
 public:
-    ModelApplication(RenderEngine& render_engine) : render_engine_(render_engine) {}
+    SpriteScene(RenderEngine& render_engine) : render_engine_(render_engine) {}
 
     void Startup() {
         {
             std::vector<unsigned char> byte_code{};
-            byte_code = Utility::ReadFile("shaders/texture/vert.spv");
+            byte_code = Utility::ReadFile("shaders/ortho2d/vert.spv");
             VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            byte_code = Utility::ReadFile("shaders/texture/frag.spv");
+            byte_code = Utility::ReadFile("shaders/ortho2d/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
 
-            texture_uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(UniformBufferObject));
-
-            texture_descriptor_set_ = render_engine_.CreateDescriptorSet({texture_uniform_buffer_}, 1);
+            texture_descriptor_set_ = render_engine_.CreateDescriptorSet({}, 1);
 
             texture_graphics_pipeline_ = render_engine_.CreateGraphicsPipeline
             (
                 vertex_shader_module,
                 fragment_shader_module,
                 {},
-                Vertex_Texture::getBindingDescription(),
-                Vertex_Texture::getAttributeDescriptions(),
+                Vertex_2D::getBindingDescription(),
+                Vertex_2D::getAttributeDescriptions(),
                 texture_descriptor_set_,
                 0,
                 true,
@@ -40,14 +37,26 @@ public:
             );
         }
 
-        LoadTexture(TEXTURE_PATH, texture_);
+        LoadTexture(SPRITE_PATH, sprite_texture_);
 
-        render_engine_.UpdateDescriptorSets(texture_descriptor_set_, {texture_});
+        render_engine_.UpdateDescriptorSets(texture_descriptor_set_, {sprite_texture_});
 
-        std::vector<Vertex_Texture> vertices;
-        std::vector<uint32_t> indices;
-        Utility::LoadModel(MODEL_PATH, vertices, indices);
-        render_engine_.CreateIndexedPrimitive<Vertex_Texture, uint32_t>(vertices, indices, primitive_);
+        {
+            std::vector<glm::vec2> vertices{};
+            std::vector<std::vector<uint32_t>> faces{};
+            Geometry2D::CreateSquare(0.35f, vertices, faces);
+
+            std::vector<glm::vec2> texture_coordinates = {
+                {0, 0},
+                {1, 0},
+                {1, 1},
+                {0, 1}
+            };
+
+            Geometry_2D geometry_sprite{};
+            geometry_sprite.AddFaces(vertices, faces, texture_coordinates);
+            render_engine_.CreateIndexedPrimitive<Vertex_2D, uint32_t>(geometry_sprite.vertices, geometry_sprite.indices, sprite_primitive_);
+        }
     }
 
     void Shutdown() {
@@ -55,10 +64,9 @@ public:
 
         render_engine_.DestroyGraphicsPipeline(texture_graphics_pipeline_);
         render_engine_.DestroyDescriptorSet(texture_descriptor_set_);
-        render_engine_.DestroyUniformBuffer(texture_uniform_buffer_);
 
-        render_engine_.DestroyIndexedPrimitive(primitive_);
-        render_engine_.DestroyTexture(texture_);
+        render_engine_.DestroyIndexedPrimitive(sprite_primitive_);
+        render_engine_.DestroyTexture(sprite_texture_);
     }
 
     void OnEntry() {
@@ -73,17 +81,6 @@ public:
     }
 
     void Update(glm::mat4 view_matrix) {
-        glm::mat4 projection_matrix = glm::perspective(glm::radians(45.0f), render_engine_.swapchain_extent_.width / (float)render_engine_.swapchain_extent_.height, 0.1f, 100.0f);
-
-        static float total_time;
-        total_time += 4.0f / 1000.0f;
-
-        uniform_buffer_.model = glm::mat4(1.0f);
-        uniform_buffer_.model = glm::translate(uniform_buffer_.model, glm::vec3(0.0f, 0.0f, 0.0f));
-        uniform_buffer_.model = glm::rotate(uniform_buffer_.model, glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-        uniform_buffer_.model = glm::rotate(uniform_buffer_.model, total_time * glm::radians(30.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        uniform_buffer_.view = view_matrix;
-        uniform_buffer_.proj = projection_matrix;
     }
 
     void Render() {
@@ -120,15 +117,13 @@ public:
 
         vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->graphics_pipeline);
         vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->pipeline_layout, 0, 1, &texture_descriptor_set_->descriptor_sets[image_index], 0, nullptr);
-        render_engine_.DrawPrimitive(command_buffer, primitive_);
+        render_engine_.DrawPrimitive(command_buffer, sprite_primitive_);
 
         vkCmdEndRenderPass(command_buffer);
 
         if (vkEndCommandBuffer(command_buffer) != VK_SUCCESS) {
             throw std::runtime_error("failed to record command buffer");
         }
-
-        render_engine_.UpdateUniformBuffer(texture_uniform_buffer_, image_index, &uniform_buffer_);
 
         render_engine_.SubmitDrawCommands(image_index);
 
@@ -147,20 +142,11 @@ private:
     RenderEngine& render_engine_;
     bool startup_ = false;
 
-    std::shared_ptr<RenderEngine::UniformBuffer> texture_uniform_buffer_{};
     std::shared_ptr<RenderEngine::DescriptorSet> texture_descriptor_set_{};
     std::shared_ptr<RenderEngine::GraphicsPipeline> texture_graphics_pipeline_{};
 
-    struct UniformBufferObject {
-        glm::mat4 model;
-        glm::mat4 view;
-        glm::mat4 proj;
-    };
-
-    UniformBufferObject uniform_buffer_{};
-
-    IndexedPrimitive primitive_{};
-    TextureSampler texture_;
+    IndexedPrimitive sprite_primitive_{};
+    TextureSampler sprite_texture_;
 
     void LoadTexture(const char* fileName, TextureSampler& texture_sampler) {
         Utility::Image texture;

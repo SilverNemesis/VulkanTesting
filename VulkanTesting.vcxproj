@@ -150,18 +150,18 @@
     <ClCompile Include="Utility.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="CubeApplication.h" />
-    <ClInclude Include="FontApplication.h" />
+    <ClInclude Include="CubeScene.h" />
+    <ClInclude Include="FontScene.h" />
     <ClInclude Include="Geometry.h" />
     <ClInclude Include="Geometry_2D.h" />
     <ClInclude Include="Geometry_Color.h" />
     <ClInclude Include="Geometry_Text.h" />
     <ClInclude Include="Geometry_Texture.h" />
     <ClInclude Include="Math.h" />
-    <ClInclude Include="ModelApplication.h" />
+    <ClInclude Include="ModelScene.h" />
     <ClInclude Include="RenderEngine.h" />
     <ClInclude Include="Scene.h" />
-    <ClInclude Include="SpriteApplication.h" />
+    <ClInclude Include="SpriteScene.h" />
     <ClInclude Include="Utility.h" />
   </ItemGroup>
   <ItemGroup>

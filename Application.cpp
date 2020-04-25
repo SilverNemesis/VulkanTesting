@@ -12,10 +12,10 @@
 #include "Math.h"
 #include "Scene.h"
 #include "RenderEngine.h"
-#include "CubeApplication.h"
-#include "ModelApplication.h"
-#include "SpriteApplication.h"
-#include "FontApplication.h"
+#include "CubeScene.h"
+#include "FontScene.h"
+#include "ModelScene.h"
+#include "SpriteScene.h"
 
 class Application : RenderApplication {
 public:
@@ -32,10 +32,10 @@ public:
             throw std::runtime_error(SDL_GetError());
         }
 
-        scenes_.push_back(new CubeApplication{render_engine_});
-        scenes_.push_back(new FontApplication{render_engine_});
-        scenes_.push_back(new ModelApplication{render_engine_});
-        scenes_.push_back(new SpriteApplication{render_engine_});
+        scenes_.push_back(new CubeScene{render_engine_});
+        scenes_.push_back(new FontScene{render_engine_});
+        scenes_.push_back(new ModelScene{render_engine_});
+        scenes_.push_back(new SpriteScene{render_engine_});
 
         render_engine_.Initialize(this);
 

@@ -8,9 +8,9 @@
 #include "Geometry_Color.h"
 #include "Geometry_Texture.h"
 
-class CubeApplication : public Scene {
+class CubeScene : public Scene {
 public:
-    CubeApplication(RenderEngine& render_engine) : render_engine_(render_engine) {}
+    CubeScene(RenderEngine& render_engine) : render_engine_(render_engine) {}
 
     void Startup() {
         camera_uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(CameraMatrix));

@@ -11,13 +11,13 @@
     <ClInclude Include="RenderEngine.h" />
     <ClInclude Include="Geometry_2D.h" />
     <ClInclude Include="Geometry_Text.h" />
-    <ClInclude Include="CubeApplication.h" />
-    <ClInclude Include="ModelApplication.h" />
-    <ClInclude Include="SpriteApplication.h" />
     <ClInclude Include="Utility.h" />
-    <ClInclude Include="FontApplication.h" />
     <ClInclude Include="Math.h" />
     <ClInclude Include="Scene.h" />
+    <ClInclude Include="CubeScene.h" />
+    <ClInclude Include="FontScene.h" />
+    <ClInclude Include="ModelScene.h" />
+    <ClInclude Include="SpriteScene.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="shaders">

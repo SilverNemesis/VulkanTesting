@@ -14,9 +14,9 @@ struct Font {
     std::map<unsigned char, Utility::FontCharacter> characters;
 };
 
-class FontApplication : public Scene {
+class FontScene : public Scene {
 public:
-    FontApplication(RenderEngine& render_engine) : render_engine_(render_engine) {}
+    FontScene(RenderEngine& render_engine) : render_engine_(render_engine) {}
 
     void Startup() {
         {
