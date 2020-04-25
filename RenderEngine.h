@@ -160,6 +160,14 @@ public:
         return true;
     }
 
+    void DrawPrimitive(VkCommandBuffer& command_buffer, IndexedPrimitive& primitive) {
+        VkBuffer vertex_buffers[] = {primitive.vertex_buffer_};
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
+        vkCmdBindIndexBuffer(command_buffer, primitive.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexed(command_buffer, primitive.index_count_, 1, 0, 0, 0);
+    }
+
     void SubmitDrawCommands(uint32_t image_index) {
         if (images_in_flight_[image_index] != VK_NULL_HANDLE) {
             vkWaitForFences(device_, 1, &images_in_flight_[image_index], VK_TRUE, UINT64_MAX);
@@ -372,9 +380,9 @@ public:
         VkDescriptorBufferInfo* buffer_info = new VkDescriptorBufferInfo[uniform_buffer_count];
 
         for (uint32_t uniform_buffer_index = 0; uniform_buffer_index < uniform_buffer_count; uniform_buffer_index++) {
-            buffer_info[image_index * uniform_buffer_count + uniform_buffer_index].buffer = descriptor_set->uniform_buffers[uniform_buffer_index]->buffers[image_index];
-            buffer_info[image_index * uniform_buffer_count + uniform_buffer_index].offset = 0;
-            buffer_info[image_index * uniform_buffer_count + uniform_buffer_index].range = descriptor_set->uniform_buffers[uniform_buffer_index]->size_;
+            buffer_info[uniform_buffer_index].buffer = descriptor_set->uniform_buffers[uniform_buffer_index]->buffers[image_index];
+            buffer_info[uniform_buffer_index].offset = 0;
+            buffer_info[uniform_buffer_index].range = descriptor_set->uniform_buffers[uniform_buffer_index]->size_;
         }
 
         VkWriteDescriptorSet write_descriptor_set{};
