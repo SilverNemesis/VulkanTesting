@@ -21,6 +21,8 @@ public:
 
         render_engine_.Initialize(render_application);
 
+        camera_uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(CameraMatrix));
+
         {
             std::vector<unsigned char> byte_code{};
             byte_code = Utility::ReadFile("shaders/color/vert.spv");
@@ -28,9 +30,9 @@ public:
             byte_code = Utility::ReadFile("shaders/color/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
 
-            color_uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(UniformBufferObject));
+            color_uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(ModelMatrix));
 
-            color_descriptor_set_ = render_engine_.CreateDescriptorSet({color_uniform_buffer_}, 0);
+            color_descriptor_set_ = render_engine_.CreateDescriptorSet({camera_uniform_buffer_, color_uniform_buffer_}, 0);
 
             color_graphics_pipeline_ = render_engine_.CreateGraphicsPipeline
             (
@@ -53,9 +55,9 @@ public:
             byte_code = Utility::ReadFile("shaders/notexture/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
 
-            texture_uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(UniformBufferObject));
+            texture_uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(ModelMatrix));
 
-            texture_descriptor_set_ = render_engine_.CreateDescriptorSet({texture_uniform_buffer_}, 0);
+            texture_descriptor_set_ = render_engine_.CreateDescriptorSet({camera_uniform_buffer_, texture_uniform_buffer_}, 0);
 
             texture_graphics_pipeline_ = render_engine_.CreateGraphicsPipeline
             (
@@ -120,7 +122,8 @@ public:
     }
 
     void Update(glm::mat4 view_matrix) {
-        glm::mat4 projection_matrix = glm::perspective(glm::radians(45.0f), render_engine_.swapchain_extent_.width / (float)render_engine_.swapchain_extent_.height, 0.1f, 100.0f);
+        camera_.view_matrix = view_matrix;
+        camera_.projection_matrix = glm::perspective(glm::radians(45.0f), render_engine_.swapchain_extent_.width / (float)render_engine_.swapchain_extent_.height, 0.1f, 100.0f);
 
         static float total_time;
         total_time += 4.0f / 1000.0f;
@@ -128,23 +131,19 @@ public:
         float offset_1 = std::sin(total_time);
         float offset_2 = std::cos(total_time);
 
-        uniform_buffer_1_.model = glm::mat4(1.0f);
-        uniform_buffer_1_.model = glm::translate(uniform_buffer_1_.model, glm::vec3(-1.0f, 0.5f, offset_1 + 1.0f));
-        uniform_buffer_1_.model = glm::rotate(uniform_buffer_1_.model, total_time * glm::radians(60.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        uniform_buffer_1_.model = glm::rotate(uniform_buffer_1_.model, total_time * glm::radians(30.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        uniform_buffer_1_.model = glm::rotate(uniform_buffer_1_.model, total_time * glm::radians(10.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-        uniform_buffer_1_.model = glm::scale(uniform_buffer_1_.model, glm::vec3(1.5f, 1.5f, 1.5f));
-        uniform_buffer_1_.view = view_matrix;
-        uniform_buffer_1_.proj = projection_matrix;
+        color_model_.model_matrix = glm::mat4(1.0f);
+        color_model_.model_matrix = glm::translate(color_model_.model_matrix, glm::vec3(-1.0f, 0.5f, offset_1 + 1.0f));
+        color_model_.model_matrix = glm::rotate(color_model_.model_matrix, total_time * glm::radians(60.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        color_model_.model_matrix = glm::rotate(color_model_.model_matrix, total_time * glm::radians(30.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        color_model_.model_matrix = glm::rotate(color_model_.model_matrix, total_time * glm::radians(10.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        color_model_.model_matrix = glm::scale(color_model_.model_matrix, glm::vec3(1.5f, 1.5f, 1.5f));
 
-        uniform_buffer_2_.model = glm::mat4(1.0f);
-        uniform_buffer_2_.model = glm::translate(uniform_buffer_2_.model, glm::vec3(1.0f, 0.5f, offset_2 + 1.0f));
-        uniform_buffer_2_.model = glm::rotate(uniform_buffer_2_.model, total_time * glm::radians(60.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        uniform_buffer_2_.model = glm::rotate(uniform_buffer_2_.model, total_time * glm::radians(30.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        uniform_buffer_2_.model = glm::rotate(uniform_buffer_2_.model, total_time * glm::radians(10.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-        uniform_buffer_2_.model = glm::scale(uniform_buffer_2_.model, glm::vec3(1.5f, 1.5f, 1.5f));
-        uniform_buffer_2_.view = view_matrix;
-        uniform_buffer_2_.proj = projection_matrix;
+        texture_model_.model_matrix = glm::mat4(1.0f);
+        texture_model_.model_matrix = glm::translate(texture_model_.model_matrix, glm::vec3(1.0f, 0.5f, offset_2 + 1.0f));
+        texture_model_.model_matrix = glm::rotate(texture_model_.model_matrix, total_time * glm::radians(60.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        texture_model_.model_matrix = glm::rotate(texture_model_.model_matrix, total_time * glm::radians(30.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        texture_model_.model_matrix = glm::rotate(texture_model_.model_matrix, total_time * glm::radians(10.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        texture_model_.model_matrix = glm::scale(texture_model_.model_matrix, glm::vec3(1.5f, 1.5f, 1.5f));
     }
 
     void Render() {
@@ -179,8 +178,10 @@ public:
 
         vkCmdBeginRenderPass(command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
 
+        render_engine_.UpdateUniformBuffer(camera_uniform_buffer_, image_index, &camera_);
+
         {
-            render_engine_.UpdateUniformBuffer(color_uniform_buffer_, image_index, &uniform_buffer_1_);
+            render_engine_.UpdateUniformBuffer(color_uniform_buffer_, image_index, &color_model_);
             vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, color_graphics_pipeline_->graphics_pipeline);
             VkBuffer vertex_buffers_1[] = {color_primitive_.vertex_buffer_};
             VkDeviceSize offsets_1[] = {0};
@@ -193,7 +194,7 @@ public:
         vkCmdNextSubpass(command_buffer, VK_SUBPASS_CONTENTS_INLINE);
 
         {
-            render_engine_.UpdateUniformBuffer(texture_uniform_buffer_, image_index, &uniform_buffer_2_);
+            render_engine_.UpdateUniformBuffer(texture_uniform_buffer_, image_index, &texture_model_);
             vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->graphics_pipeline);
             VkBuffer vertex_buffers_2[] = {texture_primitive_.vertex_buffer_};
             VkDeviceSize offsets_2[] = {0};
@@ -236,6 +237,8 @@ private:
 
     RenderEngine render_engine_{2};
 
+    std::shared_ptr<RenderEngine::UniformBuffer> camera_uniform_buffer_{};
+
     std::shared_ptr<RenderEngine::UniformBuffer> color_uniform_buffer_{};
     std::shared_ptr<RenderEngine::DescriptorSet> color_descriptor_set_{};
     std::shared_ptr<RenderEngine::GraphicsPipeline> color_graphics_pipeline_{};
@@ -244,14 +247,19 @@ private:
     std::shared_ptr<RenderEngine::DescriptorSet> texture_descriptor_set_{};
     std::shared_ptr<RenderEngine::GraphicsPipeline> texture_graphics_pipeline_{};
 
-    struct UniformBufferObject {
-        glm::mat4 model;
-        glm::mat4 view;
-        glm::mat4 proj;
+    struct CameraMatrix {
+        glm::mat4 view_matrix;
+        glm::mat4 projection_matrix;
     };
 
-    UniformBufferObject uniform_buffer_1_{};
-    UniformBufferObject uniform_buffer_2_{};
+    struct ModelMatrix {
+        glm::mat4 model_matrix;
+    };
+
+    CameraMatrix camera_{};
+
+    ModelMatrix color_model_{};
+    ModelMatrix texture_model_{};
 
     IndexedPrimitive color_primitive_{};
     IndexedPrimitive texture_primitive_{};
