@@ -331,12 +331,11 @@ public:
             uint32_t uniform_buffer_count = static_cast<uint32_t>(uniform_buffers.size());
             VkDescriptorBufferInfo* buffer_info = new VkDescriptorBufferInfo[image_count_ * uniform_buffer_count];
 
-            for (uint32_t image_index = 0; image_index < image_count_; image_index++) {
-                uint32_t uniform_buffer_index = 0;
-                for (auto& uniform_buffer : uniform_buffers) {
-                    buffer_info[image_index * uniform_buffer_count + uniform_buffer_index].buffer = uniform_buffer->buffers[image_index];
+            for (uint32_t image_index = 0; image_index < image_count_; image_index++) {            
+                for (uint32_t uniform_buffer_index = 0; uniform_buffer_index < uniform_buffer_count; uniform_buffer_index++) {
+                    buffer_info[image_index * uniform_buffer_count + uniform_buffer_index].buffer = uniform_buffers[uniform_buffer_index]->buffers[image_index];
                     buffer_info[image_index * uniform_buffer_count + uniform_buffer_index].offset = 0;
-                    buffer_info[image_index * uniform_buffer_count + uniform_buffer_index].range = uniform_buffer->size_;
+                    buffer_info[image_index * uniform_buffer_count + uniform_buffer_index].range = uniform_buffers[uniform_buffer_index]->size_;
                 }
 
                 VkWriteDescriptorSet write_descriptor_set{};
@@ -372,12 +371,10 @@ public:
         uint32_t uniform_buffer_count = static_cast<uint32_t>(descriptor_set->uniform_buffers.size());
         VkDescriptorBufferInfo* buffer_info = new VkDescriptorBufferInfo[uniform_buffer_count];
 
-        uint32_t uniform_buffer_index = 0;
-
-        for (auto& uniform_buffer : descriptor_set->uniform_buffers) {
-            buffer_info[uniform_buffer_index].buffer = uniform_buffer->buffers[image_index];
-            buffer_info[uniform_buffer_index].offset = 0;
-            buffer_info[uniform_buffer_index].range = uniform_buffer->size_;
+        for (uint32_t uniform_buffer_index = 0; uniform_buffer_index < uniform_buffer_count; uniform_buffer_index++) {
+            buffer_info[image_index * uniform_buffer_count + uniform_buffer_index].buffer = descriptor_set->uniform_buffers[uniform_buffer_index]->buffers[image_index];
+            buffer_info[image_index * uniform_buffer_count + uniform_buffer_index].offset = 0;
+            buffer_info[image_index * uniform_buffer_count + uniform_buffer_index].range = descriptor_set->uniform_buffers[uniform_buffer_index]->size_;
         }
 
         VkWriteDescriptorSet write_descriptor_set{};
