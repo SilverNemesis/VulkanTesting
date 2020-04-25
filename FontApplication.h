@@ -28,8 +28,8 @@ public:
             byte_code = Utility::ReadFile("shaders/text/frag.spv");
             VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
 
-            texture_uniform_buffer_1_ = render_engine_.CreateUniformBuffer(sizeof(UniformBufferObject));
-            texture_uniform_buffer_2_ = render_engine_.CreateUniformBuffer(sizeof(UniformBufferObject));
+            texture_uniform_buffer_1_ = render_engine_.CreateUniformBuffer(sizeof(CameraMatrix));
+            texture_uniform_buffer_2_ = render_engine_.CreateUniformBuffer(sizeof(CameraMatrix));
 
             texture_descriptor_set_1_ = render_engine_.CreateDescriptorSet({texture_uniform_buffer_1_}, 1);
             texture_descriptor_set_2_ = render_engine_.CreateDescriptorSet({texture_uniform_buffer_2_}, 1);
@@ -38,7 +38,10 @@ public:
             (
                 vertex_shader_module,
                 fragment_shader_module,
-                sizeof(glm::vec3),
+                {
+                    PushConstant{offsetof(PushConstants, color), sizeof(push_constants_.color), VK_SHADER_STAGE_FRAGMENT_BIT},
+                    PushConstant{offsetof(PushConstants, position), sizeof(push_constants_.position), VK_SHADER_STAGE_VERTEX_BIT}
+                },
                 Vertex_Text::getBindingDescription(),
                 Vertex_Text::getAttributeDescriptions(),
                 texture_descriptor_set_1_,
@@ -67,11 +70,13 @@ public:
         const char* text = "Hello world!";
 
         Geometry_Text geometry_text_1{};
-        RenderText(font_1_, text, 200, 300, geometry_text_1);
+        font_primitive_1_width_ = GetTextLength(font_1_, text);
+        RenderText(font_1_, text, 0, 0, geometry_text_1);
         render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text_1.vertices, geometry_text_1.indices, font_primitive_1_);
 
         Geometry_Text geometry_text_2{};
-        RenderText(font_2_, text, 600, 300, geometry_text_2);
+        font_primitive_2_width_ = GetTextLength(font_2_, text);
+        RenderText(font_2_, text, 0, 0, geometry_text_2);
         render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text_2.vertices, geometry_text_2.indices, font_primitive_2_);
 
         UpdateProjection();
@@ -131,15 +136,17 @@ public:
         vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->graphics_pipeline);
 
         vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->pipeline_layout, 0, 1, &texture_descriptor_set_1_->descriptor_sets[image_index], 0, nullptr);
-        glm::vec3 color_1{1.0, 0.0, 0.0};
-        vkCmdPushConstants(command_buffer, texture_graphics_pipeline_->pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(color_1), &color_1);
-
+        push_constants_.color = {1.0, 0.0, 0.0};
+        vkCmdPushConstants(command_buffer, texture_graphics_pipeline_->pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, offsetof(PushConstants, color), sizeof(push_constants_.color), &push_constants_.color);
+        push_constants_.position = {window_width_ / 2 - font_primitive_1_width_, window_height_ / 2};
+        vkCmdPushConstants(command_buffer, texture_graphics_pipeline_->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, offsetof(PushConstants, position), sizeof(push_constants_.position), &push_constants_.position);
         render_engine_.DrawPrimitive(command_buffer, font_primitive_1_);
 
         vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, texture_graphics_pipeline_->pipeline_layout, 0, 1, &texture_descriptor_set_2_->descriptor_sets[image_index], 0, nullptr);
-        glm::vec3 color_2{0.0, 0.0, 1.0};
-        vkCmdPushConstants(command_buffer, texture_graphics_pipeline_->pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(color_2), &color_2);
-
+        push_constants_.color = {0.0, 0.0, 1.0};
+        vkCmdPushConstants(command_buffer, texture_graphics_pipeline_->pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, offsetof(PushConstants, color), sizeof(push_constants_.color), &push_constants_.color);
+        push_constants_.position = {window_width_ / 2, window_height_ / 2};
+        vkCmdPushConstants(command_buffer, texture_graphics_pipeline_->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, offsetof(PushConstants, position), sizeof(push_constants_.position), &push_constants_.position);
         render_engine_.DrawPrimitive(command_buffer, font_primitive_2_);
 
         vkCmdEndRenderPass(command_buffer);
@@ -180,17 +187,24 @@ private:
     std::shared_ptr<RenderEngine::DescriptorSet> texture_descriptor_set_2_{};
     std::shared_ptr<RenderEngine::GraphicsPipeline> texture_graphics_pipeline_{};
 
-    struct UniformBufferObject {
+    struct CameraMatrix {
         glm::mat4 proj;
     };
 
-    UniformBufferObject uniform_buffer_{};
+    CameraMatrix uniform_buffer_{};
+
+    struct PushConstants {
+        glm::vec3 color{};
+        alignas(8) glm::vec2 position{};
+    } push_constants_;
 
     Font font_1_{};
     Font font_2_{};
 
     IndexedPrimitive font_primitive_1_{};
+    uint32_t font_primitive_1_width_{};
     IndexedPrimitive font_primitive_2_{};
+    uint32_t font_primitive_2_width_{};
 
     void UpdateProjection() {
         uniform_buffer_.proj = glm::ortho(0.0f, static_cast<float>(window_width_), static_cast<float>(window_height_), 0.0f);
@@ -243,8 +257,8 @@ private:
         }
     }
 
-    int32_t GetTextLength(Font& font, const char* text) {
-        int32_t size = 0;
+    uint32_t GetTextLength(Font& font, const char* text) {
+        uint32_t size = 0;
         for (const char* cur = text; *cur != 0; cur++) {
             Utility::FontCharacter ch = font.characters[*cur];
             size += ch.a;

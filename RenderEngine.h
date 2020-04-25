@@ -9,6 +9,12 @@
 #include <vulkan/vulkan.h>
 #pragma comment(lib, "vulkan-1.lib")
 
+struct PushConstant {
+    uint32_t offset;
+    uint32_t size;
+    VkShaderStageFlagBits stageFlags;
+};
+
 struct TextureSampler {
     VkSampler texture_sampler_{};
     VkImageView texture_image_view_{};
@@ -52,7 +58,7 @@ public:
     struct GraphicsPipeline {
         VkShaderModule vertex_shader_module{};
         VkShaderModule fragment_shader_module{};
-        uint32_t push_constant_size_fragment{};
+        std::vector<PushConstant> push_constants{};
         VkVertexInputBindingDescription binding_description{};
         std::vector<VkVertexInputAttributeDescription> attribute_descriptions{};
         std::shared_ptr<DescriptorSet> descriptor_set{};
@@ -449,7 +455,7 @@ public:
     (
         VkShaderModule& vertex_shader_module,
         VkShaderModule& fragment_shader_module,
-        uint32_t push_constant_size_fragment,
+        std::vector<PushConstant> push_constants,
         VkVertexInputBindingDescription binding_description,
         std::vector<VkVertexInputAttributeDescription> attribute_descriptions,
         std::shared_ptr<DescriptorSet>& descriptor_set,
@@ -461,7 +467,7 @@ public:
 
         graphics_pipeline->vertex_shader_module = vertex_shader_module;
         graphics_pipeline->fragment_shader_module = fragment_shader_module;
-        graphics_pipeline->push_constant_size_fragment = push_constant_size_fragment;
+        graphics_pipeline->push_constants = push_constants;
         graphics_pipeline->binding_description = binding_description;
         graphics_pipeline->attribute_descriptions = attribute_descriptions;
         graphics_pipeline->descriptor_set = descriptor_set;
@@ -575,12 +581,13 @@ public:
         color_blending.blendConstants[2] = 0.0f;
         color_blending.blendConstants[3] = 0.0f;
 
-        std::vector<VkPushConstantRange>push_constant_ranges;
-        if (graphics_pipeline->push_constant_size_fragment > 0) {
+        std::vector<VkPushConstantRange>push_constant_ranges{};
+
+        for (auto push_constant : graphics_pipeline->push_constants) {
             VkPushConstantRange push_constant_range;
-            push_constant_range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-            push_constant_range.offset = 0;
-            push_constant_range.size = graphics_pipeline->push_constant_size_fragment;
+            push_constant_range.stageFlags = push_constant.stageFlags;
+            push_constant_range.offset = push_constant.offset;
+            push_constant_range.size = push_constant.size;
             push_constant_ranges.push_back(push_constant_range);
         }
 

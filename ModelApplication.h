@@ -32,7 +32,7 @@ public:
             (
                 vertex_shader_module,
                 fragment_shader_module,
-                0,
+                {},
                 Vertex_Texture::getBindingDescription(),
                 Vertex_Texture::getAttributeDescriptions(),
                 texture_descriptor_set_,
