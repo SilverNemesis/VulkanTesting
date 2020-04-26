@@ -160,6 +160,7 @@
     <ClInclude Include="Geometry_Texture.h" />
     <ClInclude Include="Math.h" />
     <ClInclude Include="ModelScene.h" />
+    <ClInclude Include="InterfaceScene.h" />
     <ClInclude Include="RenderEngine.h" />
     <ClInclude Include="Scene.h" />
     <ClInclude Include="SpriteScene.h" />
@@ -169,6 +170,8 @@
   <ItemGroup>
     <None Include="shaders\color\shader.frag" />
     <None Include="shaders\color\shader.vert" />
+    <None Include="shaders\interface\shader.frag" />
+    <None Include="shaders\interface\shader.vert" />
     <None Include="shaders\notexture\shader.frag" />
     <None Include="shaders\notexture\shader.vert" />
     <None Include="shaders\ortho2d\shader.frag" />

@@ -20,6 +20,7 @@
     <ClInclude Include="SpriteScene.h" />
     <ClInclude Include="Font.h" />
     <ClInclude Include="Text.h" />
+    <ClInclude Include="InterfaceScene.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="shaders">
@@ -45,6 +46,9 @@
     </Filter>
     <Filter Include="fonts\Inconsolata">
       <UniqueIdentifier>{531d9c4d-46a3-4689-94d6-8bc4a907fe06}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="shaders\interface">
+      <UniqueIdentifier>{97fcf78b-d612-48c3-9250-ea4ce97d4547}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -77,6 +81,12 @@
     </None>
     <None Include="shaders\text\shader.vert">
       <Filter>shaders\text</Filter>
+    </None>
+    <None Include="shaders\interface\shader.frag">
+      <Filter>shaders\interface</Filter>
+    </None>
+    <None Include="shaders\interface\shader.vert">
+      <Filter>shaders\interface</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

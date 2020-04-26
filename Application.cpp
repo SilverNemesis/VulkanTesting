@@ -12,6 +12,7 @@
 #include "Math.h"
 #include "Scene.h"
 #include "RenderEngine.h"
+#include "InterfaceScene.h"
 #include "CubeScene.h"
 #include "FontScene.h"
 #include "ModelScene.h"
@@ -32,6 +33,7 @@ public:
             throw std::runtime_error(SDL_GetError());
         }
 
+        scenes_.push_back(new InterfaceScene{render_engine_});
         scenes_.push_back(new CubeScene{render_engine_});
         scenes_.push_back(new FontScene{render_engine_});
         scenes_.push_back(new ModelScene{render_engine_});
