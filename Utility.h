@@ -19,7 +19,7 @@ namespace Utility {
     struct FontCharacter {
         uint16_t x;
         uint16_t y;
-        uint8_t a;
+        uint8_t ax;
         uint8_t w;
         uint8_t h;
         uint8_t dx;
@@ -32,7 +32,7 @@ namespace Utility {
         unsigned char* pixels;
     };
 
-    void LoadFontImage(const char* file_name, uint32_t font_size, FontImage& font_image, float& font_image_size, std::map<unsigned char, FontCharacter>& character_map);
+    void LoadFontImage(const char* file_name, uint32_t font_size, FontImage& font_image, float& font_image_size, uint32_t& height, std::map<unsigned char, FontCharacter>& character_map);
 
     void FreeFontImage(FontImage& font);
 

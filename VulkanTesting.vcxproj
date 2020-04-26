@@ -178,7 +178,6 @@
   </ItemGroup>
   <ItemGroup>
     <Font Include="fonts\Inconsolata\Inconsolata-Regular.ttf" />
-    <Font Include="fonts\katakana\katakana.ttf" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

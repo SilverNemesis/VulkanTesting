@@ -81,7 +81,7 @@ std::vector<unsigned char> Utility::ReadFile(const std::string& file_name) {
     return buffer;
 }
 
-void Utility::LoadFontImage(const char* file_name, uint32_t font_size, FontImage& font_image, float& font_image_size, std::map<unsigned char, FontCharacter>& character_map) {
+void Utility::LoadFontImage(const char* file_name, uint32_t font_size, FontImage& font_image, float& font_image_size, uint32_t& height, std::map<unsigned char, FontCharacter>& character_map) {
     FT_Library ft;
     if (FT_Init_FreeType(&ft)) {
         throw std::runtime_error("unable to initialize font library");
@@ -108,6 +108,8 @@ void Utility::LoadFontImage(const char* file_name, uint32_t font_size, FontImage
         uint32_t y = 0;
         uint32_t my = 0;
 
+        height = 0;
+
         for (int i = 0; i < 256; i++) {
             int index = FT_Get_Char_Index(face, i);
 
@@ -129,6 +131,10 @@ void Utility::LoadFontImage(const char* file_name, uint32_t font_size, FontImage
             if (y + b.rows > font_image.height) {
                 resize = true;
                 continue;
+            }
+
+            if (b.rows > height) {
+                height = b.rows;
             }
 
             unsigned char* src = b.buffer;
@@ -156,6 +162,8 @@ void Utility::LoadFontImage(const char* file_name, uint32_t font_size, FontImage
         character_map.clear();
         delete[] font_image.pixels;
     }
+
+    height = height * 3 / 2;
 
     FT_Done_Face(face);
     FT_Done_FreeType(ft);

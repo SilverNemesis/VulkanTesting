@@ -41,9 +41,6 @@
     <Filter Include="shaders\text">
       <UniqueIdentifier>{eab54361-23ec-45af-9123-d30786941e4a}</UniqueIdentifier>
     </Filter>
-    <Filter Include="fonts\katakana">
-      <UniqueIdentifier>{e83f7f34-43c9-4406-b95f-e426cc5920bb}</UniqueIdentifier>
-    </Filter>
     <Filter Include="fonts\Inconsolata">
       <UniqueIdentifier>{531d9c4d-46a3-4689-94d6-8bc4a907fe06}</UniqueIdentifier>
     </Filter>
@@ -81,9 +78,6 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <Font Include="fonts\katakana\katakana.ttf">
-      <Filter>fonts\katakana</Filter>
-    </Font>
     <Font Include="fonts\Inconsolata\Inconsolata-Regular.ttf">
       <Filter>fonts\Inconsolata</Filter>
     </Font>
