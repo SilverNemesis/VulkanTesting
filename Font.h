@@ -8,10 +8,8 @@
 
 class Font {
 public:
-    float size_{};
     uint32_t height_{};
     TextureSampler texture_{};
-    std::map<unsigned char, Utility::FontCharacter> characters_{};
 
     Font(RenderEngine& render_engine) : render_engine_(render_engine) {}
 
@@ -127,4 +125,6 @@ public:
 
 private:
     RenderEngine& render_engine_;
+    float size_{};
+    std::map<unsigned char, Utility::FontCharacter> characters_{};
 };
