@@ -131,12 +131,6 @@ private:
         render_pass_ = render_engine_.CreateRenderPass();
 
         {
-            std::vector<unsigned char> byte_code{};
-            byte_code = Utility::ReadFile("shaders/texture/vert.spv");
-            VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            byte_code = Utility::ReadFile("shaders/texture/frag.spv");
-            VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-
             texture_uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(UniformBufferObject));
 
             texture_descriptor_set_ = render_engine_.CreateDescriptorSet({texture_uniform_buffer_}, 1);
@@ -144,8 +138,8 @@ private:
             texture_graphics_pipeline_ = render_engine_.CreateGraphicsPipeline
             (
                 render_pass_,
-                vertex_shader_module,
-                fragment_shader_module,
+                "shaders/texture/vert.spv",
+                "shaders/texture/frag.spv",
                 {},
                 Vertex_Texture::getBindingDescription(),
                 Vertex_Texture::getAttributeDescriptions(),
@@ -156,7 +150,7 @@ private:
             );
         }
 
-        LoadTexture(TEXTURE_PATH, texture_);
+        render_engine_.LoadTexture(TEXTURE_PATH, texture_);
 
         render_engine_.UpdateDescriptorSets(texture_descriptor_set_, {texture_});
 
@@ -167,14 +161,5 @@ private:
             render_engine_.CreateIndexedPrimitive<Vertex_Texture, uint32_t>(vertices, indices, primitive_);
             model_loaded_ = true;
             });
-    }
-
-    void LoadTexture(const char* file_name, TextureSampler& texture_sampler) {
-        Utility::Image texture;
-        Utility::LoadImage(file_name, texture);
-
-        render_engine_.CreateTexture(texture.pixels, texture.texture_width, texture.texture_height, texture_sampler);
-
-        Utility::FreeImage(texture);
     }
 };

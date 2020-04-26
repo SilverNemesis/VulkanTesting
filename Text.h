@@ -10,12 +10,6 @@ public:
     void Register(std::shared_ptr<RenderEngine::RenderPass> render_pass) {
         render_pass_ = render_pass;
         {
-            std::vector<unsigned char> byte_code{};
-            byte_code = Utility::ReadFile("shaders/text/vert.spv");
-            VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            byte_code = Utility::ReadFile("shaders/text/frag.spv");
-            VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-
             texture_uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(CameraMatrix));
 
             texture_descriptor_set_ = render_engine_.CreateDescriptorSet({texture_uniform_buffer_}, 1);
@@ -23,8 +17,8 @@ public:
             texture_graphics_pipeline_ = render_engine_.CreateGraphicsPipeline
             (
                 render_pass_,
-                vertex_shader_module,
-                fragment_shader_module,
+                "shaders/text/vert.spv",
+                "shaders/text/frag.spv",
                 {
                     PushConstant{offsetof(PushConstants, color), sizeof(push_constants_.color), VK_SHADER_STAGE_FRAGMENT_BIT},
                     PushConstant{offsetof(PushConstants, position), sizeof(push_constants_.position), VK_SHADER_STAGE_VERTEX_BIT}

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Math.h"
-#include "Utility.h"
 #include "Scene.h"
 #include "RenderEngine.h"
 #include "Geometry.h"
@@ -160,12 +159,6 @@ private:
         camera_uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(CameraMatrix));
 
         {
-            std::vector<unsigned char> byte_code{};
-            byte_code = Utility::ReadFile("shaders/color/vert.spv");
-            VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            byte_code = Utility::ReadFile("shaders/color/frag.spv");
-            VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-
             color_uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(ModelMatrix));
 
             color_descriptor_set_ = render_engine_.CreateDescriptorSet({camera_uniform_buffer_, color_uniform_buffer_}, 0);
@@ -173,8 +166,8 @@ private:
             color_graphics_pipeline_ = render_engine_.CreateGraphicsPipeline
             (
                 render_pass_,
-                vertex_shader_module,
-                fragment_shader_module,
+                "shaders/color/vert.spv",
+                "shaders/color/frag.spv",
                 {},
                 Vertex_Color::getBindingDescription(),
                 Vertex_Color::getAttributeDescriptions(),
@@ -186,12 +179,6 @@ private:
         }
 
         {
-            std::vector<unsigned char> byte_code{};
-            byte_code = Utility::ReadFile("shaders/notexture/vert.spv");
-            VkShaderModule vertex_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-            byte_code = Utility::ReadFile("shaders/notexture/frag.spv");
-            VkShaderModule fragment_shader_module = render_engine_.CreateShaderModule(byte_code.data(), byte_code.size());
-
             texture_uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(ModelMatrix));
 
             texture_descriptor_set_ = render_engine_.CreateDescriptorSet({camera_uniform_buffer_, texture_uniform_buffer_}, 0);
@@ -199,8 +186,8 @@ private:
             texture_graphics_pipeline_ = render_engine_.CreateGraphicsPipeline
             (
                 render_pass_,
-                vertex_shader_module,
-                fragment_shader_module,
+                "shaders/notexture/vert.spv",
+                "shaders/notexture/frag.spv",
                 {},
                 Vertex_Texture::getBindingDescription(),
                 Vertex_Texture::getAttributeDescriptions(),

@@ -9,6 +9,8 @@
 #include <vulkan/vulkan.h>
 #pragma comment(lib, "vulkan-1.lib")
 
+#include "Utility.h"
+
 struct PushConstant {
     uint32_t offset;
     uint32_t size;
@@ -469,8 +471,8 @@ public:
     std::shared_ptr<GraphicsPipeline> CreateGraphicsPipeline
     (
         std::shared_ptr<RenderPass>& render_pass,
-        VkShaderModule& vertex_shader_module,
-        VkShaderModule& fragment_shader_module,
+        const char* vertex_shader_module,
+        const char* fragment_shader_module,
         std::vector<PushConstant> push_constants,
         VkVertexInputBindingDescription binding_description,
         std::vector<VkVertexInputAttributeDescription> attribute_descriptions,
@@ -480,13 +482,17 @@ public:
         bool use_alpha
     ) {
         std::shared_ptr<GraphicsPipeline> graphics_pipeline = std::make_shared<GraphicsPipeline>();
-
         render_pass->graphics_pipelines_.push_back(graphics_pipeline);
+
+        std::vector<unsigned char> byte_code{};
+        byte_code = Utility::ReadFile(vertex_shader_module);
+        graphics_pipeline->vertex_shader_module = CreateShaderModule(byte_code.data(), byte_code.size());
+        byte_code = Utility::ReadFile(fragment_shader_module);
+        graphics_pipeline->fragment_shader_module = CreateShaderModule(byte_code.data(), byte_code.size());
+
         CreateRenderPass(static_cast<uint32_t>(render_pass->graphics_pipelines_.size()), render_pass->render_pass_);
         CreateFramebuffers(render_pass->render_pass_, render_pass->framebuffers_);
 
-        graphics_pipeline->vertex_shader_module = vertex_shader_module;
-        graphics_pipeline->fragment_shader_module = fragment_shader_module;
         graphics_pipeline->push_constants = push_constants;
         graphics_pipeline->binding_description = binding_description;
         graphics_pipeline->attribute_descriptions = attribute_descriptions;
@@ -507,52 +513,11 @@ public:
         graphics_pipeline.reset();
     }
 
-    void CreateTexture(unsigned char* pixels, int texWidth, int texHeight, TextureSampler& texture_sampler) {
-        VkDeviceSize image_size = static_cast<VkDeviceSize>(texWidth) * texHeight * 4;
-        uint32_t mip_levels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
-
-        VkBuffer staging_buffer;
-        VkDeviceMemory staging_buffer_memory;
-        CreateBuffer(image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
-
-        void* data;
-        vkMapMemory(device_, staging_buffer_memory, 0, image_size, 0, &data);
-        memcpy(data, pixels, static_cast<size_t>(image_size));
-        vkUnmapMemory(device_, staging_buffer_memory);
-
-        CreateImage(texWidth, texHeight, mip_levels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, texture_sampler.texture_image_, texture_sampler.texture_image_memory_);
-
-        TransformImageLayout(texture_sampler.texture_image_, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mip_levels);
-        CopyBufferToImage(staging_buffer, texture_sampler.texture_image_, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
-
-        vkDestroyBuffer(device_, staging_buffer, nullptr);
-        vkFreeMemory(device_, staging_buffer_memory, nullptr);
-
-        GenerateMipmaps(texture_sampler.texture_image_, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, mip_levels);
-
-        texture_sampler.texture_image_view_ = CreateImageView(texture_sampler.texture_image_, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, mip_levels);
-
-        VkSamplerCreateInfo sampler_info = {};
-        sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        sampler_info.magFilter = VK_FILTER_LINEAR;
-        sampler_info.minFilter = VK_FILTER_LINEAR;
-        sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        sampler_info.anisotropyEnable = VK_TRUE;
-        sampler_info.maxAnisotropy = 16;
-        sampler_info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-        sampler_info.unnormalizedCoordinates = VK_FALSE;
-        sampler_info.compareEnable = VK_FALSE;
-        sampler_info.compareOp = VK_COMPARE_OP_ALWAYS;
-        sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-        sampler_info.minLod = 0;
-        sampler_info.maxLod = static_cast<float>(mip_levels);
-        sampler_info.mipLodBias = 0;
-
-        if (vkCreateSampler(device_, &sampler_info, nullptr, &texture_sampler.texture_sampler_) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create texture sampler");
-        }
+    void LoadTexture(const char* file_name, TextureSampler& texture_sampler) {
+        Utility::Image texture;
+        Utility::LoadImage(file_name, texture);
+        CreateTexture(texture.pixels, texture.texture_width, texture.texture_height, texture_sampler);
+        Utility::FreeImage(texture);
     }
 
     void CreateAlphaTexture(unsigned char* pixels, int texWidth, int texHeight, TextureSampler& texture_sampler) {
@@ -983,6 +948,54 @@ private:
 
         if (vkCreateCommandPool(device_, &pool_info, nullptr, &command_pool_) != VK_SUCCESS) {
             throw std::runtime_error("failed to create command pool");
+        }
+    }
+
+    void CreateTexture(unsigned char* pixels, int texWidth, int texHeight, TextureSampler& texture_sampler) {
+        VkDeviceSize image_size = static_cast<VkDeviceSize>(texWidth) * texHeight * 4;
+        uint32_t mip_levels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
+
+        VkBuffer staging_buffer;
+        VkDeviceMemory staging_buffer_memory;
+        CreateBuffer(image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
+
+        void* data;
+        vkMapMemory(device_, staging_buffer_memory, 0, image_size, 0, &data);
+        memcpy(data, pixels, static_cast<size_t>(image_size));
+        vkUnmapMemory(device_, staging_buffer_memory);
+
+        CreateImage(texWidth, texHeight, mip_levels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, texture_sampler.texture_image_, texture_sampler.texture_image_memory_);
+
+        TransformImageLayout(texture_sampler.texture_image_, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mip_levels);
+        CopyBufferToImage(staging_buffer, texture_sampler.texture_image_, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+
+        vkDestroyBuffer(device_, staging_buffer, nullptr);
+        vkFreeMemory(device_, staging_buffer_memory, nullptr);
+
+        GenerateMipmaps(texture_sampler.texture_image_, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, mip_levels);
+
+        texture_sampler.texture_image_view_ = CreateImageView(texture_sampler.texture_image_, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, mip_levels);
+
+        VkSamplerCreateInfo sampler_info = {};
+        sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        sampler_info.magFilter = VK_FILTER_LINEAR;
+        sampler_info.minFilter = VK_FILTER_LINEAR;
+        sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        sampler_info.anisotropyEnable = VK_TRUE;
+        sampler_info.maxAnisotropy = 16;
+        sampler_info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+        sampler_info.unnormalizedCoordinates = VK_FALSE;
+        sampler_info.compareEnable = VK_FALSE;
+        sampler_info.compareOp = VK_COMPARE_OP_ALWAYS;
+        sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        sampler_info.minLod = 0;
+        sampler_info.maxLod = static_cast<float>(mip_levels);
+        sampler_info.mipLodBias = 0;
+
+        if (vkCreateSampler(device_, &sampler_info, nullptr, &texture_sampler.texture_sampler_) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create texture sampler");
         }
     }
 
