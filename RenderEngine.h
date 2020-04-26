@@ -358,7 +358,7 @@ public:
 
         std::vector<VkWriteDescriptorSet> descriptor_writes = {};
 
-        if (image_sampler_count == 0) {
+        if (image_sampler_count == 0 && uniform_buffers.size() > 0) {
             uint32_t uniform_buffer_count = static_cast<uint32_t>(uniform_buffers.size());
             VkDescriptorBufferInfo* buffer_info = new VkDescriptorBufferInfo[image_count_ * uniform_buffer_count];
 
