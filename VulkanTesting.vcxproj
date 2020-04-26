@@ -163,6 +163,7 @@
     <ClInclude Include="RenderEngine.h" />
     <ClInclude Include="Scene.h" />
     <ClInclude Include="SpriteScene.h" />
+    <ClInclude Include="Text.h" />
     <ClInclude Include="Utility.h" />
   </ItemGroup>
   <ItemGroup>

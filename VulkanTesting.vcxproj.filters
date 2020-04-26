@@ -19,6 +19,7 @@
     <ClInclude Include="ModelScene.h" />
     <ClInclude Include="SpriteScene.h" />
     <ClInclude Include="Font.h" />
+    <ClInclude Include="Text.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="shaders">
