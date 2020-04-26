@@ -1,19 +1,11 @@
 #pragma once
 
-#include <map>
-
 #include "Math.h"
 #include "Utility.h"
+#include "Font.h"
 #include "Scene.h"
 #include "RenderEngine.h"
 #include "Geometry_Text.h"
-
-struct Font {
-    float size;
-    uint32_t height;
-    TextureSampler texture;
-    std::map<unsigned char, Utility::FontCharacter> characters;
-};
 
 class FontScene : public Scene {
 public:
@@ -31,7 +23,7 @@ public:
             render_engine_.DestroyIndexedPrimitive(primitive_1_);
             render_engine_.DestroyIndexedPrimitive(primitive_2_);
 
-            DestroyFont(font_);
+            font_.Destroy();
         }
     }
 
@@ -89,13 +81,13 @@ public:
 
         push_constants_.color = {1.0, 0.0, 0.0};
         vkCmdPushConstants(command_buffer, texture_graphics_pipeline_->pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, offsetof(PushConstants, color), sizeof(push_constants_.color), &push_constants_.color);
-        push_constants_.position = {window_width / 2 - primitive_1_width_ / 2, window_height / 2 + font_.height / 2};
+        push_constants_.position = {window_width / 2 - primitive_1_width_ / 2, window_height / 2 + font_.height_ / 2};
         vkCmdPushConstants(command_buffer, texture_graphics_pipeline_->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, offsetof(PushConstants, position), sizeof(push_constants_.position), &push_constants_.position);
         render_engine_.DrawPrimitive(command_buffer, primitive_1_);
 
         push_constants_.color = {0.5, 0.5, 1.0};
         vkCmdPushConstants(command_buffer, texture_graphics_pipeline_->pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, offsetof(PushConstants, color), sizeof(push_constants_.color), &push_constants_.color);
-        push_constants_.position = {window_width / 2 - primitive_2_width_ / 2, window_height / 2 - font_.height / 2};
+        push_constants_.position = {window_width / 2 - primitive_2_width_ / 2, window_height / 2 - font_.height_ / 2};
         vkCmdPushConstants(command_buffer, texture_graphics_pipeline_->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, offsetof(PushConstants, position), sizeof(push_constants_.position), &push_constants_.position);
         render_engine_.DrawPrimitive(command_buffer, primitive_2_);
 
@@ -133,7 +125,7 @@ private:
         alignas(8) glm::vec2 position{};
     } push_constants_;
 
-    Font font_{};
+    Font font_{render_engine_};
 
     IndexedPrimitive primitive_1_{};
     uint32_t primitive_1_width_{};
@@ -175,9 +167,9 @@ private:
             );
         }
 
-        LoadFont("fonts/Inconsolata/Inconsolata-Regular.ttf", 36, font_);
+        font_.Initialize("fonts/Inconsolata/Inconsolata-Regular.ttf", 36);
 
-        render_engine_.UpdateDescriptorSets(texture_descriptor_set_, {font_.texture});
+        render_engine_.UpdateDescriptorSets(texture_descriptor_set_, {font_.texture_});
 
         std::vector<glm::vec2> texture_coordinates = {
             {0, 1},
@@ -190,130 +182,11 @@ private:
         std::vector<std::vector<uint32_t>> faces{};
 
         Geometry_Text geometry_text_1{};
-        RenderText(font_, "Hello world!", geometry_text_1, primitive_1_width_, primitive_1_height_);
+        font_.RenderText("Hello world!", geometry_text_1, primitive_1_width_, primitive_1_height_);
         render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text_1.vertices, geometry_text_1.indices, primitive_1_);
 
         Geometry_Text geometry_text_2{};
-        RenderText(font_, "Goodbye world  :(", geometry_text_2, primitive_2_width_, primitive_2_height_);
+        font_.RenderText("Goodbye world  :(", geometry_text_2, primitive_2_width_, primitive_2_height_);
         render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text_2.vertices, geometry_text_2.indices, primitive_2_);
-    }
-
-    void LoadTexture(const char* file_name, TextureSampler& texture_sampler) {
-        Utility::Image texture;
-        Utility::LoadImage(file_name, texture);
-
-        render_engine_.CreateTexture(texture.pixels, texture.texture_width, texture.texture_height, texture_sampler);
-
-        Utility::FreeImage(texture);
-    }
-
-    void RenderText(Font& font, const char* text, Geometry_Text& geometry, uint32_t& width, uint32_t& height) {
-        std::vector<uint32_t> face = {0, 1, 2, 3};
-
-        width = 0;
-        height = 0;
-
-        uint32_t offset = 0;
-
-        for (const char* cur = text; *cur != 0; cur++) {
-            Utility::FontCharacter ch = font.characters[*cur];
-
-            uint32_t h = static_cast<uint32_t>(ch.h);
-
-            if (h > height) {
-                height = h;
-            }
-
-            width += ch.ax;
-
-            float l = static_cast<float>(offset + ch.dx);
-            float r = static_cast<float>(offset + ch.dx + ch.w);
-            float t = static_cast<float>(ch.dy - ch.h);
-            float b = static_cast<float>(ch.dy);
-
-            std::vector<glm::vec2> vertices = {
-                {l, t},
-                {r, t},
-                {r, b},
-                {l, b}
-            };
-
-            l = static_cast<float>(ch.x) / font.size;
-            r = static_cast<float>(ch.x + ch.w) / font.size;
-            t = static_cast<float>(ch.y) / font.size;
-            b = static_cast<float>(ch.y + ch.h) / font.size;
-
-            std::vector<glm::vec2> texture_coords = {
-                {l, b},
-                {r, b},
-                {r, t},
-                {l, t}
-            };
-
-            geometry.AddFace(vertices, face, texture_coords);
-
-            offset += ch.ax;
-        }
-    }
-
-    void RenderTextVertical(Font& font, const char* text, Geometry_Text& geometry, uint32_t& width, uint32_t& height) {
-        std::vector<uint32_t> face = {0, 1, 2, 3};
-
-        width = 0;
-        height = 0;
-
-        uint32_t offset = 0;
-
-        for (const char* cur = text + strlen(text) - 1; cur >= text; cur--) {
-            Utility::FontCharacter ch = font.characters[*cur];
-
-            uint32_t w = static_cast<uint32_t>(ch.ax);
-
-            if (w > width) {
-                width = w;
-            }
-
-            height += font.height;
-
-            float l = static_cast<float>(ch.dx);
-            float r = static_cast<float>(ch.dx + ch.w);
-            float t = static_cast<float>(offset + ch.dy - ch.h);
-            float b = static_cast<float>(offset + ch.dy);
-
-            std::vector<glm::vec2> vertices = {
-                {l, t},
-                {r, t},
-                {r, b},
-                {l, b}
-            };
-
-            l = static_cast<float>(ch.x) / font.size;
-            r = static_cast<float>(ch.x + ch.w) / font.size;
-            t = static_cast<float>(ch.y) / font.size;
-            b = static_cast<float>(ch.y + ch.h) / font.size;
-
-            std::vector<glm::vec2> texture_coords = {
-                {l, b},
-                {r, b},
-                {r, t},
-                {l, t}
-            };
-
-            geometry.AddFace(vertices, face, texture_coords);
-
-            offset += font.height;
-        }
-    }
-
-    void LoadFont(const char* file_name, uint32_t font_size, Font& font) {
-        Utility::FontImage font_image;
-        Utility::LoadFontImage(file_name, font_size, font_image, font.size, font.height, font.characters);
-        render_engine_.CreateAlphaTexture(font_image.pixels, font_image.width, font_image.height, font.texture);
-        Utility::FreeFontImage(font_image);
-    }
-
-    void DestroyFont(Font& font) {
-        render_engine_.DestroyTexture(font.texture);
-        font.characters.clear();
     }
 };
