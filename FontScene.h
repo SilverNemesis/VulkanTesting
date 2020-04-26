@@ -11,7 +11,7 @@ class FontScene : public Scene {
 public:
     FontScene(RenderEngine& render_engine) : render_engine_(render_engine) {}
 
-    void Shutdown() {
+    void OnQuit() {
         if (startup_) {
             vkDeviceWaitIdle(render_engine_.device_);
 

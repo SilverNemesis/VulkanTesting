@@ -69,7 +69,7 @@ public:
     void Shutdown() {
         for (auto scene : scenes_) {
             scene->OnExit();
-            scene->Shutdown();
+            scene->OnQuit();
         }
         render_engine_.Destroy();
         SDL_DestroyWindow(window_);
