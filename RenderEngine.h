@@ -185,6 +185,13 @@ public:
         vkCmdDrawIndexed(command_buffer, primitive.index_count_, 1, 0, 0, 0);
     }
 
+    void BindPrimitive(VkCommandBuffer& command_buffer, IndexedPrimitive& primitive) {
+        VkBuffer vertex_buffers[] = {primitive.vertex_buffer_};
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
+        vkCmdBindIndexBuffer(command_buffer, primitive.index_buffer_, 0, VK_INDEX_TYPE_UINT32);
+    }
+
     void SubmitDrawCommands(uint32_t image_index) {
         if (images_in_flight_[image_index] != VK_NULL_HANDLE) {
             vkWaitForFences(device_, 1, &images_in_flight_[image_index], VK_TRUE, UINT64_MAX);
@@ -610,6 +617,46 @@ public:
 
         vkDestroyBuffer(device_, stagingBuffer, nullptr);
         vkFreeMemory(device_, stagingBufferMemory, nullptr);
+    }
+
+    template <class Vertex, class Index>
+    void CreateDynamicIndexedPrimitive(Vertex* vertices, uint32_t vertices_count, Index* indices, uint32_t indices_count, IndexedPrimitive& primitive) {
+        VkDeviceSize bufferSize = vertices_count * sizeof(vertices[0]);
+
+        CreateBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, primitive.vertex_buffer_, primitive.vertex_buffer_memory_);
+
+        void* data;
+        vkMapMemory(device_, primitive.vertex_buffer_memory_, 0, bufferSize, 0, &data);
+        memcpy(data, vertices, (size_t)bufferSize);
+        vkUnmapMemory(device_, primitive.vertex_buffer_memory_);
+
+        primitive.index_count_ = indices_count;
+
+        bufferSize = indices_count * sizeof(indices[0]);
+
+        CreateBuffer(bufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, primitive.index_buffer_, primitive.index_buffer_memory_);
+
+        vkMapMemory(device_, primitive.index_buffer_memory_, 0, bufferSize, 0, &data);
+        memcpy(data, indices, (size_t)bufferSize);
+        vkUnmapMemory(device_, primitive.index_buffer_memory_);
+    }
+
+    template <class Vertex, class Index>
+    void UpdateDynamicIndexedPrimitive(Vertex* vertices, uint32_t vertices_count, Index* indices, uint32_t indices_count, IndexedPrimitive& primitive) {
+        VkDeviceSize bufferSize = vertices_count * sizeof(vertices[0]);
+
+        void* data;
+        vkMapMemory(device_, primitive.vertex_buffer_memory_, 0, bufferSize, 0, &data);
+        memcpy(data, vertices, (size_t)bufferSize);
+        vkUnmapMemory(device_, primitive.vertex_buffer_memory_);
+
+        primitive.index_count_ = indices_count;
+
+        bufferSize = indices_count * sizeof(indices[0]);
+
+        vkMapMemory(device_, primitive.index_buffer_memory_, 0, bufferSize, 0, &data);
+        memcpy(data, indices, (size_t)bufferSize);
+        vkUnmapMemory(device_, primitive.index_buffer_memory_);
     }
 
     void DestroyIndexedPrimitive(IndexedPrimitive& primitive) {
@@ -1070,9 +1117,9 @@ private:
             depth_stencil.depthBoundsTestEnable = VK_FALSE;
             depth_stencil.stencilTestEnable = VK_FALSE;
         } else {
-            depth_stencil.depthTestEnable = VK_FALSE;
-            depth_stencil.depthWriteEnable = VK_FALSE;
-            depth_stencil.depthCompareOp = VK_COMPARE_OP_ALWAYS;
+            depth_stencil.depthTestEnable = VK_TRUE;
+            depth_stencil.depthWriteEnable = VK_TRUE;
+            depth_stencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
             depth_stencil.depthBoundsTestEnable = VK_FALSE;
             depth_stencil.stencilTestEnable = VK_FALSE;
         }
@@ -1083,8 +1130,10 @@ private:
             color_blend_attachment.blendEnable = VK_TRUE;
             color_blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
             color_blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            color_blend_attachment.colorBlendOp = VK_BLEND_OP_ADD;
             color_blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
             color_blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            color_blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
         } else {
             color_blend_attachment.blendEnable = VK_FALSE;
         }
