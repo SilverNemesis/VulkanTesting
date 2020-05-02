@@ -36,9 +36,6 @@ public:
 
         render_engine_.UpdateDescriptorSets(texture_descriptor_set_, {font_.texture_});
 
-        std::vector<glm::vec2> vertices{};
-        std::vector<std::vector<uint32_t>> faces{};
-
         Geometry_Text geometry_text_1{};
         font_.RenderText("Hello world!", geometry_text_1, primitive_1_width_, primitive_1_height_);
         render_engine_.CreateIndexedPrimitive<Vertex_Text, uint32_t>(geometry_text_1.vertices, geometry_text_1.indices, primitive_1_);
