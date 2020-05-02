@@ -71,9 +71,9 @@ public:
         static int count = 0;
 
         if (count % 60 == 0) {
-            const char* phrase = phrases_[rand() % phrases_.size()];
+            const char* word = words_[rand() % words_.size()];
             Geometry_Text geometry_text{};
-            font_.RenderText(phrase, geometry_text, primitive_width_, primitive_height_);
+            font_.RenderText(word, geometry_text, primitive_width_, primitive_height_);
             render_engine_.UpdateDynamicIndexedPrimitive<Vertex_Text, uint32_t>(
                 geometry_text.vertices.data(),
                 static_cast<uint32_t>(geometry_text.vertices.size()),
@@ -164,7 +164,108 @@ private:
         alignas(8) glm::vec2 position{};
     } push_constants_;
 
-    std::vector<const char*> phrases_ = {"Hello world!", "Goodbye world!", "Cruel world", "HAPPY", "SAD", "LOVE", "HATE"};
+    std::vector<const char*> words_ = {
+        "acceptable",
+        "accessible",
+        "adhesive",
+        "admire",
+        "advise",
+        "appliance",
+        "arrogant",
+        "bawdy",
+        "behave",
+        "bell",
+        "best",
+        "breath",
+        "cable",
+        "cake",
+        "carve",
+        "cemetery",
+        "comb",
+        "comfortable",
+        "crown",
+        "curve",
+        "decorate",
+        "depend",
+        "disagreeable",
+        "disastrous",
+        "discover",
+        "discreet",
+        "disillusioned",
+        "dog",
+        "draconian",
+        "endurable",
+        "entertain",
+        "ethereal",
+        "expect",
+        "fang",
+        "fax",
+        "fertile",
+        "first",
+        "fish",
+        "front",
+        "grey",
+        "grouchy",
+        "hilarious",
+        "hug",
+        "impress",
+        "injure",
+        "ink",
+        "invent",
+        "irritate",
+        "join",
+        "knife",
+        "lamentable",
+        "lick",
+        "likeable",
+        "lying",
+        "marked",
+        "mist",
+        "mouth",
+        "nebulous",
+        "noise",
+        "numerous",
+        "occur",
+        "old",
+        "overrated",
+        "payment",
+        "peel",
+        "prepare",
+        "preserve",
+        "public",
+        "punishment",
+        "quarter",
+        "quizzical",
+        "rainy",
+        "rightful",
+        "salt",
+        "scare",
+        "scream",
+        "short",
+        "sick",
+        "signal",
+        "sock",
+        "sofa",
+        "soup",
+        "stiff",
+        "stingy",
+        "strip",
+        "supply",
+        "suspect",
+        "table",
+        "tawdry",
+        "temporary",
+        "tenuous",
+        "texture",
+        "thunder",
+        "trade",
+        "treatment",
+        "two",
+        "wax",
+        "wire",
+        "wish",
+        "wistful"
+    };
 
     IndexedPrimitive primitive_{};
     uint32_t primitive_width_{};
@@ -200,16 +301,16 @@ private:
 
         render_engine_.UpdateDescriptorSets(descriptor_set_, {font_.texture_});
 
-        const char* phrase = phrases_[0];
+        const char* word = words_[0];
 
-        for (size_t i = 1; i < phrases_.size(); i++) {
-            if (strlen(phrases_[i]) > strlen(phrase)) {
-                phrase = phrases_[i];
+        for (size_t i = 1; i < words_.size(); i++) {
+            if (strlen(words_[i]) > strlen(word)) {
+                word = words_[i];
             }
         }
 
         Geometry_Text geometry_text{};
-        font_.RenderText(phrase, geometry_text, primitive_width_, primitive_height_);
+        font_.RenderText(word, geometry_text, primitive_width_, primitive_height_);
         render_engine_.CreateDynamicIndexedPrimitive<Vertex_Text, uint32_t>(
             geometry_text.vertices.data(),
             static_cast<uint32_t>(geometry_text.vertices.size()),
