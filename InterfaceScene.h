@@ -7,29 +7,9 @@
 #include "RenderEngine.h"
 #include "Font.h"
 
-struct Vertex_UI {
-    glm::vec2 pos;
-    glm::vec2 uv;
-    glm::tvec4<unsigned char> col;
-
-    bool operator==(const Vertex_UI& other) const {
-        return pos == other.pos && uv == other.uv && col == other.col;
-    }
-
-    static VkVertexInputBindingDescription getBindingDescription() {
-        static VkVertexInputBindingDescription bindingDescription = {0, sizeof(Vertex_UI), VK_VERTEX_INPUT_RATE_VERTEX};
-        return bindingDescription;
-    }
-
-    static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() {
-        static std::vector<VkVertexInputAttributeDescription> attributeDescriptions = {{
-            {0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex_UI, pos)},
-            {1, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex_UI, uv)},
-            {2, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(Vertex_UI, col)}
-            }};
-        return attributeDescriptions;
-    }
-};
+#define WORD_COUNT              2048
+#define VERTEX_COUNT            (128*1024)
+#define INDEX_COUNT             (128*1024)
 
 class InterfaceScene : public Scene {
 public:
@@ -68,19 +48,40 @@ public:
             return;
         }
 
-        static int count = 0;
+        uint32_t window_width = render_engine_.swapchain_extent_.width;
+        uint32_t window_height = render_engine_.swapchain_extent_.height;
 
-        if (count % 60 == 0) {
+        camera_.proj = glm::ortho(0.0f, static_cast<float>(window_width), static_cast<float>(window_height), 0.0f);
+        render_engine_.UpdateUniformBuffers(uniform_buffer_, &camera_);
+
+        Geometry_Text geometry_text{};
+
+        texts_.clear();
+
+        for (int i = 0; i < WORD_COUNT; i++) {
+            text text{};
             const char* word = words_[rand() % words_.size()];
-            Geometry_Text geometry_text{};
-            font_.RenderText(word, geometry_text, primitive_width_, primitive_height_);
-            render_engine_.UpdateDynamicIndexedPrimitive<Vertex_Text, uint32_t>(
-                geometry_text.vertices.data(),
-                static_cast<uint32_t>(geometry_text.vertices.size()),
-                geometry_text.indices.data(),
-                static_cast<uint32_t>(geometry_text.indices.size()),
-                primitive_);
+            text.offset = static_cast<uint32_t>(geometry_text.indices.size());
+            font_.RenderText(word, geometry_text, text.width, text.height);
+            text.count = static_cast<uint32_t>(geometry_text.indices.size() - text.offset);
+            text.color = {
+                (rand() % 256) / 255.0,
+                (rand() % 256) / 255.0,
+                (rand() % 256) / 255.0
+            };
+            text.position = {
+                rand() % (window_width - text.width),
+                rand() % (window_height - font_.height_)
+            };
+            texts_.push_back(text);
         }
+
+        render_engine_.UpdateDynamicIndexedPrimitive<Vertex_Text, uint32_t>(
+            geometry_text.vertices.data(),
+            static_cast<uint32_t>(geometry_text.vertices.size()),
+            geometry_text.indices.data(),
+            static_cast<uint32_t>(geometry_text.indices.size()),
+            primitive_);
 
         VkCommandBuffer& command_buffer = render_engine_.command_buffers_[image_index];
 
@@ -107,26 +108,19 @@ public:
 
         vkCmdBeginRenderPass(command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
 
-        uint32_t window_width = render_engine_.swapchain_extent_.width;
-        uint32_t window_height = render_engine_.swapchain_extent_.height;
-        camera_.proj = glm::ortho(0.0f, static_cast<float>(window_width), static_cast<float>(window_height), 0.0f);
-        render_engine_.UpdateUniformBuffers(uniform_buffer_, &camera_);
-
         vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_->graphics_pipeline);
 
         vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_->pipeline_layout, 0, 1, &descriptor_set_->descriptor_sets[image_index], 0, nullptr);
 
-        if (count % 30 == 0) {
-            push_constants_.color = {
-                (rand() % 256) / 255.0,
-                (rand() % 256) / 255.0,
-                (rand() % 256) / 255.0
-            };
+        render_engine_.BindPrimitive(command_buffer, primitive_);
+
+        for (auto& text : texts_) {
+            push_constants_.color = text.color;
+            push_constants_.position = text.position;
+            vkCmdPushConstants(command_buffer, graphics_pipeline_->pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, offsetof(PushConstants, color), sizeof(push_constants_.color), &push_constants_.color);
+            vkCmdPushConstants(command_buffer, graphics_pipeline_->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, offsetof(PushConstants, position), sizeof(push_constants_.position), &push_constants_.position);
+            vkCmdDrawIndexed(command_buffer, text.count, 1, text.offset, 0, 0);
         }
-        vkCmdPushConstants(command_buffer, graphics_pipeline_->pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, offsetof(PushConstants, color), sizeof(push_constants_.color), &push_constants_.color);
-        push_constants_.position = {window_width / 2 - primitive_width_ / 2, window_height / 2 + font_.height_ / 2};
-        vkCmdPushConstants(command_buffer, graphics_pipeline_->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, offsetof(PushConstants, position), sizeof(push_constants_.position), &push_constants_.position);
-        render_engine_.DrawPrimitive(command_buffer, primitive_);
 
         vkCmdEndRenderPass(command_buffer);
 
@@ -137,8 +131,6 @@ public:
         render_engine_.SubmitDrawCommands(image_index);
 
         render_engine_.PresentImage(image_index);
-
-        count++;
     }
 
 private:
@@ -163,6 +155,19 @@ private:
         glm::vec3 color{};
         alignas(8) glm::vec2 position{};
     } push_constants_;
+
+    struct text {
+        uint32_t offset;
+        uint32_t count;
+        uint32_t width;
+        uint32_t height;
+        glm::vec3 color{};
+        glm::vec2 position{};
+    };
+
+    std::vector<text> texts_;
+
+    IndexedPrimitive primitive_{};
 
     std::vector<const char*> words_ = {
         "acceptable",
@@ -267,10 +272,6 @@ private:
         "wistful"
     };
 
-    IndexedPrimitive primitive_{};
-    uint32_t primitive_width_{};
-    uint32_t primitive_height_{};
-
     void Startup() {
         render_pass_ = render_engine_.CreateRenderPass();
 
@@ -301,21 +302,8 @@ private:
 
         render_engine_.UpdateDescriptorSets(descriptor_set_, {font_.texture_});
 
-        const char* word = words_[0];
-
-        for (size_t i = 1; i < words_.size(); i++) {
-            if (strlen(words_[i]) > strlen(word)) {
-                word = words_[i];
-            }
-        }
-
-        Geometry_Text geometry_text{};
-        font_.RenderText(word, geometry_text, primitive_width_, primitive_height_);
-        render_engine_.CreateDynamicIndexedPrimitive<Vertex_Text, uint32_t>(
-            geometry_text.vertices.data(),
-            static_cast<uint32_t>(geometry_text.vertices.size()),
-            geometry_text.indices.data(),
-            static_cast<uint32_t>(geometry_text.indices.size()),
-            primitive_);
+        VkDeviceSize vertex_size = static_cast<VkDeviceSize>(VERTEX_COUNT * sizeof(Vertex_Text));
+        VkDeviceSize index_size = static_cast<VkDeviceSize>(INDEX_COUNT * sizeof(uint32_t));
+        render_engine_.AllocateDynamicIndexedPrimitive<Vertex_Text, uint32_t>(vertex_size, index_size, primitive_);
     }
 };

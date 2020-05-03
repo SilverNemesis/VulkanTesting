@@ -620,25 +620,9 @@ public:
     }
 
     template <class Vertex, class Index>
-    void CreateDynamicIndexedPrimitive(Vertex* vertices, uint32_t vertices_count, Index* indices, uint32_t indices_count, IndexedPrimitive& primitive) {
-        VkDeviceSize bufferSize = vertices_count * sizeof(vertices[0]);
-
-        CreateBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, primitive.vertex_buffer_, primitive.vertex_buffer_memory_);
-
-        void* data;
-        vkMapMemory(device_, primitive.vertex_buffer_memory_, 0, bufferSize, 0, &data);
-        memcpy(data, vertices, (size_t)bufferSize);
-        vkUnmapMemory(device_, primitive.vertex_buffer_memory_);
-
-        primitive.index_count_ = indices_count;
-
-        bufferSize = indices_count * sizeof(indices[0]);
-
-        CreateBuffer(bufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, primitive.index_buffer_, primitive.index_buffer_memory_);
-
-        vkMapMemory(device_, primitive.index_buffer_memory_, 0, bufferSize, 0, &data);
-        memcpy(data, indices, (size_t)bufferSize);
-        vkUnmapMemory(device_, primitive.index_buffer_memory_);
+    void AllocateDynamicIndexedPrimitive(VkDeviceSize vertices_size, VkDeviceSize indices_size, IndexedPrimitive& primitive) {
+        CreateBuffer(vertices_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, primitive.vertex_buffer_, primitive.vertex_buffer_memory_);
+        CreateBuffer(indices_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, primitive.index_buffer_, primitive.index_buffer_memory_);
     }
 
     template <class Vertex, class Index>
