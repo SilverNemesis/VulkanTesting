@@ -25,6 +25,23 @@ public:
         characters_.clear();
     }
 
+    void GetSize(const char* text, uint32_t& width, uint32_t& height) {
+        width = 0;
+        height = 0;
+
+        for (const char* cur = text; *cur != 0; cur++) {
+            Utility::FontCharacter ch = characters_[*cur];
+
+            uint32_t h = static_cast<uint32_t>(ch.h);
+
+            if (h > height) {
+                height = h;
+            }
+
+            width += ch.ax;
+        }
+    }
+
     void RenderText(const char* text, Geometry_Text& geometry, uint32_t& width, uint32_t& height) {
         std::vector<uint32_t> face = {0, 1, 2, 3};
 
