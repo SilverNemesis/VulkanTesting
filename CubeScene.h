@@ -2,6 +2,7 @@
 
 #include "Math.h"
 #include "Scene.h"
+#include "Camera.h"
 #include "RenderEngine.h"
 #include "Geometry.h"
 #include "Geometry_Color.h"
@@ -38,10 +39,9 @@ public:
     void OnExit() {
     }
 
-    void Update(glm::mat4 view_matrix) {
-        camera_.view_matrix = view_matrix;
-        camera_.projection_matrix = glm::perspective(glm::radians(45.0f), render_engine_.swapchain_extent_.width / (float)render_engine_.swapchain_extent_.height, 0.1f, 100.0f);
-
+    void Update(std::array<bool, SDL_NUM_SCANCODES>& key_state, bool mouse_capture, int mouse_x, int mouse_y) {
+        camera_.Update(key_state, mouse_capture, mouse_x, mouse_y);
+        
         static float total_time;
         total_time += 4.0f / 1000.0f;
 
@@ -136,16 +136,11 @@ private:
 
     std::shared_ptr<RenderEngine::RenderPass> render_pass_{};
 
-    struct CameraMatrix {
-        glm::mat4 view_matrix;
-        glm::mat4 projection_matrix;
-    };
+    Camera camera_{render_engine_};
 
     struct ModelMatrix {
         glm::mat4 model_matrix;
     };
-
-    CameraMatrix camera_{};
 
     ModelMatrix color_model_{};
     ModelMatrix texture_model_{};
@@ -156,7 +151,7 @@ private:
     void Startup() {
         render_pass_ = render_engine_.CreateRenderPass();
 
-        camera_uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(CameraMatrix));
+        camera_uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(Camera::CameraMatrix));
 
         {
             color_uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(ModelMatrix));

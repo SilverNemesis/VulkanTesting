@@ -6,6 +6,7 @@
 #include "Math.h"
 #include "Utility.h"
 #include "Scene.h"
+#include "Camera.h"
 #include "RenderEngine.h"
 #include "Geometry.h"
 #include "Geometry_Texture.h"
@@ -40,8 +41,8 @@ public:
     void OnExit() {
     }
 
-    void Update(glm::mat4 view_matrix) {
-        glm::mat4 projection_matrix = glm::perspective(glm::radians(45.0f), render_engine_.swapchain_extent_.width / (float)render_engine_.swapchain_extent_.height, 0.1f, 100.0f);
+    void Update(std::array<bool, SDL_NUM_SCANCODES>& key_state, bool mouse_capture, int mouse_x, int mouse_y) {
+        camera_.Update(key_state, mouse_capture, mouse_x, mouse_y);
 
         static float total_time;
         total_time += 4.0f / 1000.0f;
@@ -50,8 +51,8 @@ public:
         uniform_buffer_.model = glm::translate(uniform_buffer_.model, glm::vec3(0.0f, 0.0f, 0.0f));
         uniform_buffer_.model = glm::rotate(uniform_buffer_.model, glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
         uniform_buffer_.model = glm::rotate(uniform_buffer_.model, total_time * glm::radians(30.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        uniform_buffer_.view = view_matrix;
-        uniform_buffer_.proj = projection_matrix;
+        uniform_buffer_.view = camera_.camera_.view_matrix;
+        uniform_buffer_.proj = camera_.camera_.projection_matrix;
     }
 
     void Render() {
@@ -113,6 +114,8 @@ private:
     std::shared_ptr<RenderEngine::DescriptorSet> texture_descriptor_set_{};
     std::shared_ptr<RenderEngine::GraphicsPipeline> texture_graphics_pipeline_{};
     std::shared_ptr<RenderEngine::RenderPass> render_pass_{};
+
+    Camera camera_{render_engine_};
 
     struct UniformBufferObject {
         glm::mat4 model;

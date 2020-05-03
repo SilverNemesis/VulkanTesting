@@ -150,6 +150,7 @@
     <ClCompile Include="Utility.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Camera.h" />
     <ClInclude Include="CubeScene.h" />
     <ClInclude Include="Font.h" />
     <ClInclude Include="FontScene.h" />

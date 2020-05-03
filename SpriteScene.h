@@ -34,7 +34,7 @@ public:
     void OnExit() {
     }
 
-    void Update(glm::mat4 view_matrix) {
+    void Update(std::array<bool, SDL_NUM_SCANCODES>& key_state, bool mouse_capture, int mouse_x, int mouse_y) {
     }
 
     void Render() {

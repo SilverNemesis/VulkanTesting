@@ -8,6 +8,6 @@ public:
     virtual void OnQuit() = 0;
     virtual void OnEntry() = 0;
     virtual void OnExit() = 0;
-    virtual void Update(glm::mat4 view_matrix) = 0;
+    virtual void Update(std::array<bool, SDL_NUM_SCANCODES>& key_state, bool mouse_capture, int mouse_x, int mouse_y) = 0;
     virtual void Render() = 0;
 };
