@@ -5,6 +5,8 @@
 #include "RenderEngine.h"
 #include "Text.h"
 
+#define WORD_COUNT              2048
+
 class FontScene : public Scene {
 public:
     FontScene(RenderEngine& render_engine) : render_engine_(render_engine) {}
@@ -36,7 +38,33 @@ public:
             return;
         }
 
-        text_.Update();
+        text_.DrawBegin();
+
+        uint32_t window_width = render_engine_.swapchain_extent_.width;
+        uint32_t window_height = render_engine_.swapchain_extent_.height;
+
+        for (int i = 0; i < WORD_COUNT; i++) {
+            const char* word = words_[rand() % words_.size()];
+
+            uint32_t width;
+            uint32_t height;
+            text_.GetSize(word, width, height);
+
+            glm::vec3 color = {
+                (rand() % 256) / 255.0,
+                (rand() % 256) / 255.0,
+                (rand() % 256) / 255.0
+            };
+
+            glm::vec2 position = {
+                rand() % (window_width - width),
+                rand() % (window_height - height)
+            };
+
+            text_.Draw(color, position, word);
+        }
+
+        text_.DrawEnd();
 
         VkCommandBuffer& command_buffer = render_engine_.command_buffers_[image_index];
 
@@ -81,4 +109,107 @@ private:
     bool startup_ = false;
     std::shared_ptr<RenderEngine::RenderPass> render_pass_{};
     Text text_{render_engine_};
+
+    std::vector<const char*> words_ = {
+        "acceptable",
+        "accessible",
+        "adhesive",
+        "admire",
+        "advise",
+        "appliance",
+        "arrogant",
+        "bawdy",
+        "behave",
+        "bell",
+        "best",
+        "breath",
+        "cable",
+        "cake",
+        "carve",
+        "cemetery",
+        "comb",
+        "comfortable",
+        "crown",
+        "curve",
+        "decorate",
+        "depend",
+        "disagreeable",
+        "disastrous",
+        "discover",
+        "discreet",
+        "disillusioned",
+        "dog",
+        "draconian",
+        "endurable",
+        "entertain",
+        "ethereal",
+        "expect",
+        "fang",
+        "fax",
+        "fertile",
+        "first",
+        "fish",
+        "front",
+        "grey",
+        "grouchy",
+        "hilarious",
+        "hug",
+        "impress",
+        "injure",
+        "ink",
+        "invent",
+        "irritate",
+        "join",
+        "knife",
+        "lamentable",
+        "lick",
+        "likeable",
+        "lying",
+        "marked",
+        "mist",
+        "mouth",
+        "nebulous",
+        "noise",
+        "numerous",
+        "occur",
+        "old",
+        "overrated",
+        "payment",
+        "peel",
+        "prepare",
+        "preserve",
+        "public",
+        "punishment",
+        "quarter",
+        "quizzical",
+        "rainy",
+        "rightful",
+        "salt",
+        "scare",
+        "scream",
+        "short",
+        "sick",
+        "signal",
+        "sock",
+        "sofa",
+        "soup",
+        "stiff",
+        "stingy",
+        "strip",
+        "supply",
+        "suspect",
+        "table",
+        "tawdry",
+        "temporary",
+        "tenuous",
+        "texture",
+        "thunder",
+        "trade",
+        "treatment",
+        "two",
+        "wax",
+        "wire",
+        "wish",
+        "wistful"
+    };
 };
