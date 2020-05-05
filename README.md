@@ -8,7 +8,7 @@ It requires [Visual Studio](https://visualstudio.microsoft.com/vs/) for the deve
 
 ## Installing
 
-Run vcpkg to install glm:x64-windows sdl2[vulkan]:x64-windows stb:x64-windows tinyobjloader:x64-windows
+Run vcpkg to install glm:x64-windows sdl2[vulkan]:x64-windows stb:x64-windows tinyobjloader:x64-windows imgui:x64-windows
 
 Run the compile.ps1 script in the shaders subfolder to build the shader binaries
 
