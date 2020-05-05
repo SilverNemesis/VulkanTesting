@@ -2,14 +2,12 @@
 
 #include <Windows.h>
 
+#include <imgui.h>
+
 #include "Math.h"
 #include "Scene.h"
 #include "RenderEngine.h"
 #include "Font.h"
-
-#define WORD_COUNT              2048
-#define VERTEX_COUNT            (128*1024)
-#define INDEX_COUNT             (128*1024)
 
 class InterfaceScene : public Scene {
 public:
@@ -20,11 +18,11 @@ public:
             vkDeviceWaitIdle(render_engine_.device_);
             render_engine_.DestroyGraphicsPipeline(graphics_pipeline_);
             render_engine_.DestroyDescriptorSet(descriptor_set_);
-            render_engine_.DestroyUniformBuffer(uniform_buffer_);
 
-            font_.Destroy();
+            render_engine_.DestroyTexture(texture_);
 
-            render_engine_.DestroyIndexedPrimitive(primitive_);
+            render_engine_.DestroyBuffer(vertex_buffer_);
+            render_engine_.DestroyBuffer(index_buffer_);
         }
     }
 
@@ -39,6 +37,18 @@ public:
     }
 
     void Update(std::array<bool, SDL_NUM_SCANCODES>& key_state, bool mouse_capture, int mouse_x, int mouse_y) {
+        // Setup time step (we don't use SDL_GetTicks() because it is using millisecond resolution)
+        static Uint64 frequency = SDL_GetPerformanceFrequency();
+        Uint64 current_time = SDL_GetPerformanceCounter();
+        ImGuiIO& io = ImGui::GetIO();
+        io.DeltaTime = last_time_ > 0 && current_time - last_time_ > 0 ? (float)((double)(current_time - last_time_) / frequency) : (float)(1.0f / 60.0f);
+        last_time_ = current_time;
+
+        //ImGui_ImplSDL2_UpdateMousePosAndButtons();
+        //ImGui_ImplSDL2_UpdateMouseCursor();
+
+        //// Update game controllers (if enabled and available)
+        //ImGui_ImplSDL2_UpdateGamepads();
     }
 
     void Render() {
@@ -48,40 +58,97 @@ public:
             return;
         }
 
-        uint32_t window_width = render_engine_.swapchain_extent_.width;
-        uint32_t window_height = render_engine_.swapchain_extent_.height;
+        ImGuiIO& io = ImGui::GetIO();
+        IM_ASSERT(io.Fonts->IsBuilt() && "Font atlas not built! It is generally built by the renderer back-end. Missing call to renderer _NewFrame() function? e.g. ImGui_ImplOpenGL3_NewFrame().");
 
-        camera_.proj = glm::ortho(0.0f, static_cast<float>(window_width), static_cast<float>(window_height), 0.0f);
-        render_engine_.UpdateUniformBuffers(uniform_buffer_, &camera_);
+        io.DisplaySize = ImVec2((float)render_engine_.swapchain_extent_.width, (float)render_engine_.swapchain_extent_.width);
+        io.DisplayFramebufferScale = ImVec2(1.0, 1.0);
 
-        Geometry_Text geometry_text{};
+        // Start the Dear ImGui frame
+        ImGui::NewFrame();
 
-        texts_.clear();
+        // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
+        if (show_demo_window)
+            ImGui::ShowDemoWindow(&show_demo_window);
 
-        for (int i = 0; i < WORD_COUNT; i++) {
-            text text{};
-            const char* word = words_[rand() % words_.size()];
-            text.offset = static_cast<uint32_t>(geometry_text.indices.size());
-            font_.RenderText(word, geometry_text, text.width, text.height);
-            text.count = static_cast<uint32_t>(geometry_text.indices.size() - text.offset);
-            text.color = {
-                (rand() % 256) / 255.0,
-                (rand() % 256) / 255.0,
-                (rand() % 256) / 255.0
-            };
-            text.position = {
-                rand() % (window_width - text.width),
-                rand() % (window_height - font_.height_)
-            };
-            texts_.push_back(text);
+        // 2. Show a simple window that we create ourselves. We use a Begin/End pair to created a named window.
+        {
+            static float f = 0.0f;
+            static int counter = 0;
+
+            ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
+
+            ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
+            ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
+            ImGui::Checkbox("Another Window", &show_another_window);
+
+            ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
+            ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
+
+            if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
+                counter++;
+            ImGui::SameLine();
+            ImGui::Text("counter = %d", counter);
+
+            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+            ImGui::End();
         }
 
-        render_engine_.UpdateDynamicIndexedPrimitive<Vertex_Text, uint32_t>(
-            geometry_text.vertices.data(),
-            static_cast<uint32_t>(geometry_text.vertices.size()),
-            geometry_text.indices.data(),
-            static_cast<uint32_t>(geometry_text.indices.size()),
-            primitive_);
+        // 3. Show another simple window.
+        if (show_another_window) {
+            ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
+            ImGui::Text("Hello from another window!");
+            if (ImGui::Button("Close Me"))
+                show_another_window = false;
+            ImGui::End();
+        }
+
+        // Rendering
+        ImGui::Render();
+
+        ImDrawData* draw_data = ImGui::GetDrawData();
+
+        int fb_width = (int)(draw_data->DisplaySize.x * draw_data->FramebufferScale.x);
+        int fb_height = (int)(draw_data->DisplaySize.y * draw_data->FramebufferScale.y);
+
+        size_t vertex_size = draw_data->TotalVtxCount * sizeof(ImDrawVert);
+        size_t index_size = draw_data->TotalIdxCount * sizeof(ImDrawIdx);
+
+        if (vertex_buffer_.size < vertex_size) {
+            render_engine_.CreateOrResizeBuffer(vertex_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertex_buffer_);
+        }
+
+        if (index_buffer_.size < index_size) {
+            render_engine_.CreateOrResizeBuffer(index_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, index_buffer_);
+        }
+
+        if (vertex_size != 0 && index_size != 0) {
+            ImDrawVert* vtx_dst = NULL;
+            ImDrawIdx* idx_dst = NULL;
+
+            vkMapMemory(render_engine_.device_, vertex_buffer_.memory, 0, vertex_size, 0, (void**)(&vtx_dst));
+            vkMapMemory(render_engine_.device_, index_buffer_.memory, 0, index_size, 0, (void**)(&idx_dst));
+
+            for (int n = 0; n < draw_data->CmdListsCount; n++) {
+                const ImDrawList* cmd_list = draw_data->CmdLists[n];
+                memcpy(vtx_dst, cmd_list->VtxBuffer.Data, cmd_list->VtxBuffer.Size * sizeof(ImDrawVert));
+                memcpy(idx_dst, cmd_list->IdxBuffer.Data, cmd_list->IdxBuffer.Size * sizeof(ImDrawIdx));
+                vtx_dst += cmd_list->VtxBuffer.Size;
+                idx_dst += cmd_list->IdxBuffer.Size;
+            }
+
+            VkMappedMemoryRange range[2] = {};
+            range[0].sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+            range[0].memory = vertex_buffer_.memory;
+            range[0].size = VK_WHOLE_SIZE;
+            range[1].sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+            range[1].memory = index_buffer_.memory;
+            range[1].size = VK_WHOLE_SIZE;
+            vkFlushMappedMemoryRanges(render_engine_.device_, 2, range);
+
+            vkUnmapMemory(render_engine_.device_, vertex_buffer_.memory);
+            vkUnmapMemory(render_engine_.device_, index_buffer_.memory);
+        }
 
         VkCommandBuffer& command_buffer = render_engine_.command_buffers_[image_index];
 
@@ -100,7 +167,7 @@ public:
         render_pass_info.renderArea.extent = render_engine_.swapchain_extent_;
 
         std::array<VkClearValue, 2> clear_values = {};
-        clear_values[0].color = {0.0f, 0.0f, 0.0f, 1.0f};
+        clear_values[0].color = {0.45f, 0.55f, 0.60f, 1.00f};
         clear_values[1].depthStencil = {1.0f, 0};
 
         render_pass_info.clearValueCount = static_cast<uint32_t>(clear_values.size());
@@ -112,14 +179,72 @@ public:
 
         vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_->pipeline_layout, 0, 1, &descriptor_set_->descriptor_sets[image_index], 0, nullptr);
 
-        render_engine_.BindPrimitive(command_buffer, primitive_);
+        if (vertex_size != 0 && index_size != 0) {
+            VkBuffer vertex_buffers[1] = {vertex_buffer_.buffer};
+            VkDeviceSize vertex_offset[1] = {0};
+            vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, vertex_offset);
+            vkCmdBindIndexBuffer(command_buffer, index_buffer_.buffer, 0, sizeof(ImDrawIdx) == 2 ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
+        }
 
-        for (auto& text : texts_) {
-            push_constants_.color = text.color;
-            push_constants_.position = text.position;
-            vkCmdPushConstants(command_buffer, graphics_pipeline_->pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, offsetof(PushConstants, color), sizeof(push_constants_.color), &push_constants_.color);
-            vkCmdPushConstants(command_buffer, graphics_pipeline_->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, offsetof(PushConstants, position), sizeof(push_constants_.position), &push_constants_.position);
-            vkCmdDrawIndexed(command_buffer, text.count, 1, text.offset, 0, 0);
+        {
+            VkViewport viewport;
+            viewport.x = 0;
+            viewport.y = 0;
+            viewport.width = (float)fb_width;
+            viewport.height = (float)fb_height;
+            viewport.minDepth = 0.0f;
+            viewport.maxDepth = 1.0f;
+            vkCmdSetViewport(command_buffer, 0, 1, &viewport);
+        }
+
+        {
+            float scale[2];
+            scale[0] = 2.0f / draw_data->DisplaySize.x;
+            scale[1] = 2.0f / draw_data->DisplaySize.y;
+            float translate[2];
+            translate[0] = -1.0f - draw_data->DisplayPos.x * scale[0];
+            translate[1] = -1.0f - draw_data->DisplayPos.y * scale[1];
+            vkCmdPushConstants(command_buffer, graphics_pipeline_->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(float) * 0, sizeof(float) * 2, scale);
+            vkCmdPushConstants(command_buffer, graphics_pipeline_->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(float) * 2, sizeof(float) * 2, translate);
+        }
+
+        ImVec2 clip_off = draw_data->DisplayPos;
+        ImVec2 clip_scale = draw_data->FramebufferScale;
+
+        int global_vtx_offset = 0;
+        int global_idx_offset = 0;
+
+        for (int n = 0; n < draw_data->CmdListsCount; n++) {
+            const ImDrawList* cmd_list = draw_data->CmdLists[n];
+
+            for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++) {
+                const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[cmd_i];
+
+                ImVec4 clip_rect;
+                clip_rect.x = (pcmd->ClipRect.x - clip_off.x) * clip_scale.x;
+                clip_rect.y = (pcmd->ClipRect.y - clip_off.y) * clip_scale.y;
+                clip_rect.z = (pcmd->ClipRect.z - clip_off.x) * clip_scale.x;
+                clip_rect.w = (pcmd->ClipRect.w - clip_off.y) * clip_scale.y;
+
+                if (clip_rect.x < fb_width && clip_rect.y < fb_height && clip_rect.z >= 0.0f && clip_rect.w >= 0.0f) {
+                    if (clip_rect.x < 0.0f)
+                        clip_rect.x = 0.0f;
+                    if (clip_rect.y < 0.0f)
+                        clip_rect.y = 0.0f;
+
+                    VkRect2D scissor;
+                    scissor.offset.x = (int32_t)(clip_rect.x);
+                    scissor.offset.y = (int32_t)(clip_rect.y);
+                    scissor.extent.width = (uint32_t)(clip_rect.z - clip_rect.x);
+                    scissor.extent.height = (uint32_t)(clip_rect.w - clip_rect.y);
+                    vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+
+                    vkCmdDrawIndexed(command_buffer, pcmd->ElemCount, 1, pcmd->IdxOffset + global_idx_offset, pcmd->VtxOffset + global_vtx_offset, 0);
+                }
+            }
+
+            global_idx_offset += cmd_list->IdxBuffer.Size;
+            global_vtx_offset += cmd_list->VtxBuffer.Size;
         }
 
         vkCmdEndRenderPass(command_buffer);
@@ -138,174 +263,79 @@ private:
     bool startup_ = false;
 
     std::shared_ptr<RenderEngine::RenderPass> render_pass_{};
-
-    Font font_{render_engine_};
-
     std::shared_ptr<RenderEngine::GraphicsPipeline> graphics_pipeline_{};
     std::shared_ptr<RenderEngine::DescriptorSet> descriptor_set_{};
-    std::shared_ptr<RenderEngine::UniformBuffer> uniform_buffer_{};
 
-    struct CameraMatrix {
-        glm::mat4 proj;
-    };
+    TextureSampler texture_{};
 
-    CameraMatrix camera_{};
+    ImDrawData draw_data_;
 
     struct PushConstants {
-        glm::vec3 color{};
-        alignas(8) glm::vec2 position{};
+        glm::vec2 scale{};
+        glm::vec2 translate{};
     } push_constants_;
 
-    struct text {
-        uint32_t offset;
-        uint32_t count;
-        uint32_t width;
-        uint32_t height;
-        glm::vec3 color{};
-        glm::vec2 position{};
-    };
+    Buffer vertex_buffer_{};
+    Buffer index_buffer_{};
 
-    std::vector<text> texts_;
+    Uint64 last_time_{};
 
-    IndexedPrimitive primitive_{};
+    bool show_demo_window = true;
+    bool show_another_window = false;
+    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
-    std::vector<const char*> words_ = {
-        "acceptable",
-        "accessible",
-        "adhesive",
-        "admire",
-        "advise",
-        "appliance",
-        "arrogant",
-        "bawdy",
-        "behave",
-        "bell",
-        "best",
-        "breath",
-        "cable",
-        "cake",
-        "carve",
-        "cemetery",
-        "comb",
-        "comfortable",
-        "crown",
-        "curve",
-        "decorate",
-        "depend",
-        "disagreeable",
-        "disastrous",
-        "discover",
-        "discreet",
-        "disillusioned",
-        "dog",
-        "draconian",
-        "endurable",
-        "entertain",
-        "ethereal",
-        "expect",
-        "fang",
-        "fax",
-        "fertile",
-        "first",
-        "fish",
-        "front",
-        "grey",
-        "grouchy",
-        "hilarious",
-        "hug",
-        "impress",
-        "injure",
-        "ink",
-        "invent",
-        "irritate",
-        "join",
-        "knife",
-        "lamentable",
-        "lick",
-        "likeable",
-        "lying",
-        "marked",
-        "mist",
-        "mouth",
-        "nebulous",
-        "noise",
-        "numerous",
-        "occur",
-        "old",
-        "overrated",
-        "payment",
-        "peel",
-        "prepare",
-        "preserve",
-        "public",
-        "punishment",
-        "quarter",
-        "quizzical",
-        "rainy",
-        "rightful",
-        "salt",
-        "scare",
-        "scream",
-        "short",
-        "sick",
-        "signal",
-        "sock",
-        "sofa",
-        "soup",
-        "stiff",
-        "stingy",
-        "strip",
-        "supply",
-        "suspect",
-        "table",
-        "tawdry",
-        "temporary",
-        "tenuous",
-        "texture",
-        "thunder",
-        "trade",
-        "treatment",
-        "two",
-        "wax",
-        "wire",
-        "wish",
-        "wistful"
-    };
+    static VkVertexInputBindingDescription getBindingDescription() {
+        static VkVertexInputBindingDescription bindingDescription = {0, sizeof(ImDrawVert), VK_VERTEX_INPUT_RATE_VERTEX};
+        return bindingDescription;
+    }
+
+    static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() {
+        static std::vector<VkVertexInputAttributeDescription> attributeDescriptions = {{
+            {0, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(ImDrawVert, pos)},
+            {1, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(ImDrawVert, uv)},
+            {2, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(ImDrawVert, col)}
+            }};
+        return attributeDescriptions;
+    }
 
     void Startup() {
         render_pass_ = render_engine_.CreateRenderPass();
 
         {
-            uniform_buffer_ = render_engine_.CreateUniformBuffer(sizeof(CameraMatrix));
-
-            descriptor_set_ = render_engine_.CreateDescriptorSet({uniform_buffer_}, 1);
+            descriptor_set_ = render_engine_.CreateDescriptorSet({}, 1);
 
             graphics_pipeline_ = render_engine_.CreateGraphicsPipeline
             (
                 render_pass_,
-                "shaders/text/vert.spv",
-                "shaders/text/frag.spv",
+                "shaders/interface/vert.spv",
+                "shaders/interface/frag.spv",
                 {
-                    PushConstant{offsetof(PushConstants, color), sizeof(push_constants_.color), VK_SHADER_STAGE_FRAGMENT_BIT},
-                    PushConstant{offsetof(PushConstants, position), sizeof(push_constants_.position), VK_SHADER_STAGE_VERTEX_BIT}
+                    PushConstant{offsetof(PushConstants, scale), sizeof(push_constants_.scale), VK_SHADER_STAGE_FRAGMENT_BIT},
+                    PushConstant{offsetof(PushConstants, translate), sizeof(push_constants_.translate), VK_SHADER_STAGE_VERTEX_BIT}
                 },
-                Vertex_Text::getBindingDescription(),
-                Vertex_Text::getAttributeDescriptions(),
+                getBindingDescription(),
+                getAttributeDescriptions(),
                 descriptor_set_,
                 0,
                 false,
                 true,
-                false,
-                false
+                true,
+                true
             );
         }
 
-        font_.Initialize("fonts/Inconsolata/Inconsolata-Regular.ttf", 36);
+        IMGUI_CHECKVERSION();
+        ImGui::CreateContext();
+        ImGuiIO& io = ImGui::GetIO();
 
-        render_engine_.UpdateDescriptorSets(descriptor_set_, {font_.texture_});
+        unsigned char* pixels;
+        int width, height;
+        io.Fonts->GetTexDataAsAlpha8(&pixels, &width, &height);
+        size_t upload_size = width * height * sizeof(char);
+        render_engine_.CreateAlphaTexture(pixels, width, height, texture_);
 
-        VkDeviceSize vertex_size = static_cast<VkDeviceSize>(VERTEX_COUNT * sizeof(Vertex_Text));
-        VkDeviceSize index_size = static_cast<VkDeviceSize>(INDEX_COUNT * sizeof(uint32_t));
-        render_engine_.AllocateDynamicIndexedPrimitive<Vertex_Text, uint32_t>(vertex_size, index_size, primitive_);
+        render_engine_.UpdateDescriptorSets(descriptor_set_, {texture_});
+
+        ImGui::StyleColorsDark();
     }
 };
