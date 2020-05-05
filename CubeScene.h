@@ -169,6 +169,8 @@ private:
                 color_descriptor_set_,
                 0,
                 true,
+                false,
+                false,
                 false
             );
         }
@@ -189,6 +191,8 @@ private:
                 texture_descriptor_set_,
                 0,
                 true,
+                false,
+                false,
                 false
             );
         }

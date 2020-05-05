@@ -32,6 +32,12 @@ struct IndexedPrimitive {
     uint32_t index_count_{};
 };
 
+struct Buffer {
+    VkDeviceSize size{};
+    VkBuffer buffer{};
+    VkDeviceMemory memory{};
+};
+
 class RenderApplication {
 public:
     virtual void GetRequiredExtensions(std::vector<const char*>& required_extensions) = 0;
@@ -65,6 +71,8 @@ public:
         uint32_t subpass{};
         bool use_depth{};
         bool use_alpha{};
+        bool use_dynamic_state{};
+        bool use_no_culling{};
         VkPipelineLayout pipeline_layout{};
         VkPipeline graphics_pipeline{};
     };
@@ -486,7 +494,9 @@ public:
         std::shared_ptr<DescriptorSet>& descriptor_set,
         uint32_t subpass,
         bool use_depth,
-        bool use_alpha
+        bool use_alpha,
+        bool use_dynamic_state,
+        bool use_no_culling
     ) {
         std::shared_ptr<GraphicsPipeline> graphics_pipeline = std::make_shared<GraphicsPipeline>();
         render_pass->graphics_pipelines_.push_back(graphics_pipeline);
@@ -507,6 +517,8 @@ public:
         graphics_pipeline->subpass = subpass;
         graphics_pipeline->use_depth = use_depth;
         graphics_pipeline->use_alpha = use_alpha;
+        graphics_pipeline->use_dynamic_state = use_dynamic_state;
+        graphics_pipeline->use_no_culling = use_no_culling;
 
         RebuildGraphicsPipeline(render_pass, graphics_pipeline);
 
@@ -617,6 +629,21 @@ public:
 
         vkDestroyBuffer(device_, stagingBuffer, nullptr);
         vkFreeMemory(device_, stagingBufferMemory, nullptr);
+    }
+
+    void CreateOrResizeBuffer(VkDeviceSize size, VkBufferUsageFlags flags, Buffer& buffer) {
+        if (buffer.buffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device_, buffer.buffer, nullptr);
+        }
+        if (buffer.memory != VK_NULL_HANDLE) {
+            vkFreeMemory(device_, buffer.memory, nullptr);
+        }
+        CreateBuffer(size, flags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, buffer.buffer, buffer.memory);
+    }
+
+    void DestroyBuffer(Buffer& buffer) {
+        vkDestroyBuffer(device_, buffer.buffer, nullptr);
+        vkFreeMemory(device_, buffer.memory, nullptr);
     }
 
     template <class Vertex, class Index>
@@ -1083,7 +1110,11 @@ private:
         rasterizer.rasterizerDiscardEnable = VK_FALSE;
         rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
         rasterizer.lineWidth = 1.0f;
-        rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+        if (graphics_pipeline->use_no_culling) {
+            rasterizer.cullMode = VK_CULL_MODE_NONE;
+        } else {
+            rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+        }
         rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
         rasterizer.depthBiasEnable = VK_FALSE;
 
@@ -1154,6 +1185,18 @@ private:
             throw std::runtime_error("failed to create pipeline layout");
         }
 
+        VkDynamicState dynamic_states[2] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+        VkPipelineDynamicStateCreateInfo dynamic_state = {};
+        dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        dynamic_state.dynamicStateCount = 2;
+        dynamic_state.pDynamicStates = dynamic_states;
+
+        VkPipelineDynamicStateCreateInfo* ds{};
+
+        if (graphics_pipeline->use_dynamic_state) {
+            ds = &dynamic_state;
+        }
+
         VkGraphicsPipelineCreateInfo pipeline_info = {};
         pipeline_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
         pipeline_info.stageCount = 2;
@@ -1165,6 +1208,7 @@ private:
         pipeline_info.pMultisampleState = &multisampling;
         pipeline_info.pDepthStencilState = &depth_stencil;
         pipeline_info.pColorBlendState = &color_blending;
+        pipeline_info.pDynamicState = ds;
         pipeline_info.layout = graphics_pipeline->pipeline_layout;
         pipeline_info.renderPass = render_pass->render_pass_;
         pipeline_info.subpass = graphics_pipeline->subpass;

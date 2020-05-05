@@ -149,6 +149,8 @@ private:
                 texture_descriptor_set_,
                 0,
                 true,
+                false,
+                false,
                 false
             );
         }
