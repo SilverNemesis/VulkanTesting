@@ -37,6 +37,10 @@ public:
     void Update(std::array<bool, SDL_NUM_SCANCODES>& key_state, bool mouse_capture, int mouse_x, int mouse_y) {
     }
 
+    bool EventHandler(const SDL_Event* event) {
+        return false;
+    }
+
     void Render() {
         uint32_t image_index;
 

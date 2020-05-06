@@ -63,6 +63,10 @@ public:
         texture_model_.model_matrix = glm::scale(texture_model_.model_matrix, glm::vec3(1.5f, 1.5f, 1.5f));
     }
 
+    bool EventHandler(const SDL_Event* event) {
+        return false;
+    }
+
     void Render() {
         uint32_t image_index;
 

@@ -33,7 +33,7 @@ public:
             throw std::runtime_error(SDL_GetError());
         }
 
-        scenes_.push_back(new InterfaceScene{render_engine_});
+        scenes_.push_back(new InterfaceScene{render_engine_, window_});
         scenes_.push_back(new CubeScene{render_engine_});
         scenes_.push_back(new FontScene{render_engine_});
         scenes_.push_back(new ModelScene{render_engine_});
@@ -96,7 +96,9 @@ private:
 
     void ProcessInput() {
         SDL_Event event;
+
         while (SDL_PollEvent(&event)) {
+            scene_->EventHandler(&event);
             switch (event.type) {
             case SDL_QUIT:
                 window_closed_ = true;

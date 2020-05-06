@@ -55,6 +55,10 @@ public:
         uniform_buffer_.proj = camera_.camera_.projection_matrix;
     }
 
+    bool EventHandler(const SDL_Event* event) {
+        return false;
+    }
+
     void Render() {
         uint32_t image_index;
 
