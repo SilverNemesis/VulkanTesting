@@ -287,6 +287,7 @@ private:
 
     bool mouse_pressed_[3] = {false, false, false};
     SDL_Cursor* mouse_cursors_[ImGuiMouseCursor_COUNT] = {};
+    char* clipboard_text_data_ = nullptr;
 
     static VkVertexInputBindingDescription getBindingDescription() {
         static VkVertexInputBindingDescription bindingDescription = {0, sizeof(ImDrawVert), VK_VERTEX_INPUT_RATE_VERTEX};
@@ -341,6 +342,66 @@ private:
         render_engine_.UpdateDescriptorSets(descriptor_set_, {texture_});
 
         ImGui::StyleColorsDark();
+
+        Initialize();
+    }
+
+    bool Initialize() {
+        ImGuiIO& io = ImGui::GetIO();
+        io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;
+        io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;
+        io.BackendPlatformName = "imgui_impl_sdl";
+
+        io.KeyMap[ImGuiKey_Tab] = SDL_SCANCODE_TAB;
+        io.KeyMap[ImGuiKey_LeftArrow] = SDL_SCANCODE_LEFT;
+        io.KeyMap[ImGuiKey_RightArrow] = SDL_SCANCODE_RIGHT;
+        io.KeyMap[ImGuiKey_UpArrow] = SDL_SCANCODE_UP;
+        io.KeyMap[ImGuiKey_DownArrow] = SDL_SCANCODE_DOWN;
+        io.KeyMap[ImGuiKey_PageUp] = SDL_SCANCODE_PAGEUP;
+        io.KeyMap[ImGuiKey_PageDown] = SDL_SCANCODE_PAGEDOWN;
+        io.KeyMap[ImGuiKey_Home] = SDL_SCANCODE_HOME;
+        io.KeyMap[ImGuiKey_End] = SDL_SCANCODE_END;
+        io.KeyMap[ImGuiKey_Insert] = SDL_SCANCODE_INSERT;
+        io.KeyMap[ImGuiKey_Delete] = SDL_SCANCODE_DELETE;
+        io.KeyMap[ImGuiKey_Backspace] = SDL_SCANCODE_BACKSPACE;
+        io.KeyMap[ImGuiKey_Space] = SDL_SCANCODE_SPACE;
+        io.KeyMap[ImGuiKey_Enter] = SDL_SCANCODE_RETURN;
+        io.KeyMap[ImGuiKey_Escape] = SDL_SCANCODE_ESCAPE;
+        io.KeyMap[ImGuiKey_KeyPadEnter] = SDL_SCANCODE_KP_ENTER;
+        io.KeyMap[ImGuiKey_A] = SDL_SCANCODE_A;
+        io.KeyMap[ImGuiKey_C] = SDL_SCANCODE_C;
+        io.KeyMap[ImGuiKey_V] = SDL_SCANCODE_V;
+        io.KeyMap[ImGuiKey_X] = SDL_SCANCODE_X;
+        io.KeyMap[ImGuiKey_Y] = SDL_SCANCODE_Y;
+        io.KeyMap[ImGuiKey_Z] = SDL_SCANCODE_Z;
+
+        io.ClipboardUserData = this;
+
+        io.SetClipboardTextFn = [](void* user_data, const char* text) -> void {
+            SDL_SetClipboardText(text);
+        };
+
+        io.GetClipboardTextFn = [](void* user_data) -> const char* {
+            InterfaceScene* app = (InterfaceScene*)user_data;
+            if (app->clipboard_text_data_) {
+                SDL_free(app->clipboard_text_data_);
+            }
+            app->clipboard_text_data_ = SDL_GetClipboardText();
+            return app->clipboard_text_data_;
+        };
+
+        io.ClipboardUserData = NULL;
+
+        mouse_cursors_[ImGuiMouseCursor_Arrow] = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
+        mouse_cursors_[ImGuiMouseCursor_TextInput] = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_IBEAM);
+        mouse_cursors_[ImGuiMouseCursor_ResizeAll] = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_SIZEALL);
+        mouse_cursors_[ImGuiMouseCursor_ResizeNS] = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_SIZENS);
+        mouse_cursors_[ImGuiMouseCursor_ResizeEW] = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_SIZEWE);
+        mouse_cursors_[ImGuiMouseCursor_ResizeNESW] = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_SIZENESW);
+        mouse_cursors_[ImGuiMouseCursor_ResizeNWSE] = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_SIZENWSE);
+        mouse_cursors_[ImGuiMouseCursor_Hand] = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_HAND);
+
+        return true;
     }
 
     bool ProcessEvent(const SDL_Event* event) {
